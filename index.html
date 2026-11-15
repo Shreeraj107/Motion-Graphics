@@ -3,7 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#030303" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>4K Motion Mind-Map Studio</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23030303'/%3E%3Ccircle cx='18' cy='20' r='9' fill='none' stroke='%2300E5FF' stroke-width='4'/%3E%3Ccircle cx='46' cy='44' r='9' fill='none' stroke='%23FDD100' stroke-width='4'/%3E%3Cpath d='M27 20 C 36 20, 28 44, 37 44' fill='none' stroke='%2300E5FF' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%224K%20Motion%20Mind-Map%20Studio%22%2C%22short_name%22%3A%22MotionStudio%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23030303%22%2C%22theme_color%22%3A%22%23030303%22%7D" />
+  <!-- MP4 Muxer for Offline Frame-by-Frame 4K 60fps MP4 Export -->
+  <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js"></script>
   <style>
     :root {
       --bg-obsidian: #030303;
@@ -140,6 +146,12 @@
       color: #030303;
       border: none;
       font-weight: 700;
+      box-shadow: 0 0 18px rgba(253, 209, 0, 0.3);
+    }
+
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #FFE033 0%, #E6BA00 100%);
+      box-shadow: 0 0 26px rgba(253, 209, 0, 0.55);
     }
 
     .btn-danger {
@@ -158,7 +170,7 @@
       top: 74px;
       left: 18px;
       bottom: 18px;
-      width: 375px;
+      width: 380px;
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       backdrop-filter: blur(18px);
@@ -311,7 +323,8 @@
     }
 
     input[type="text"],
-    input[type="number"] {
+    input[type="number"],
+    select {
       width: 100%;
       background: rgba(0, 0, 0, 0.45);
       border: 1px solid rgba(255, 255, 255, 0.14);
@@ -323,7 +336,8 @@
     }
 
     input[type="text"]:focus,
-    input[type="number"]:focus {
+    input[type="number"]:focus,
+    select:focus {
       border-color: var(--cyan);
     }
 
@@ -380,6 +394,66 @@
     .hint-bar strong {
       color: var(--silver);
     }
+
+    /* 4K MP4 Offline Render Progress Overlay */
+    .render-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 3, 3, 0.86);
+      backdrop-filter: blur(14px);
+      z-index: 999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .render-modal.active {
+      display: flex;
+    }
+
+    .render-box {
+      width: 440px;
+      background: rgba(14, 17, 23, 0.96);
+      border: 1px solid rgba(253, 209, 0, 0.35);
+      border-radius: 18px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.9);
+    }
+
+    .render-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--gold);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--gold));
+      transition: width 0.08s linear;
+    }
+
+    .render-stats {
+      font-size: 12.5px;
+      color: var(--silver);
+      display: flex;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -398,8 +472,8 @@
     <button class="btn" id="btnResetLayout" title="Snap circles back to ideal 4K motion graphic layout">
       ⌖ Reset 4K Layout
     </button>
-    <button class="btn btn-gold" id="btnRecord">
-      ⏺ Record 4K (.webm)
+    <button class="btn btn-gold" id="btnExportMP4" title="Frame-by-frame lossless-grade 4K 60fps MP4 render">
+      🎬 Export 4K MP4
     </button>
     <button class="btn" id="btnFullscreen">
       ⛶ Fullscreen
@@ -409,12 +483,35 @@
     </button>
   </div>
 
+  <!-- 4K MP4 RENDER PROGRESS MODAL -->
+  <div class="render-modal" id="renderModal">
+    <div class="render-box">
+      <div class="render-title">
+        <span>🎬 Rendering 4K 60fps MP4...</span>
+        <span id="renderPercent">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="renderProgressBar"></div>
+      </div>
+      <div class="render-stats">
+        <span id="renderFrameText">Frame 0 / 0</span>
+        <span id="renderBitrateText">3840×2160 • 60fps</span>
+      </div>
+      <p style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4;">
+        Encoding exact frame-by-frame 4K video with zero dropped frames. Keep this window open until download completes.
+      </p>
+      <button class="btn btn-danger" id="btnCancelRender" style="justify-content: center;">
+        ✕ Cancel Render
+      </button>
+    </div>
+  </div>
+
   <!-- LEFT STUDIO EDIT WINDOW -->
   <aside class="edit-window studio-ui" id="editWindow">
     <div class="window-header">
       <div class="window-title">
         <span>Motion Studio</span>
-        <span class="badge-4k">4K UHD</span>
+        <span class="badge-4k">4K MP4 APP</span>
       </div>
       <span style="font-size: 11px; color: var(--text-muted);">3840 × 2160</span>
     </div>
@@ -424,7 +521,7 @@
       <div class="section-card">
         <div class="section-label">
           <span>1. Wait Time Controls (Seconds)</span>
-          <span style="color:var(--gold); font-size:10px;">Gold Holds Until ESC</span>
+          <span style="color:var(--gold); font-size:10px;">Live Gold Holds Until ESC</span>
         </div>
 
         <div class="inline-inputs">
@@ -490,10 +587,37 @@
         </div>
       </div>
 
-      <!-- 2. BACKGROUND MAP TEXTURE ZOOM & VISIBILITY -->
+      <!-- 2. 4K MP4 LOSSLESS-GRADE EXPORT SETTINGS -->
       <div class="section-card">
         <div class="section-label">
-          <span>2. Background Map Line Controls</span>
+          <span>2. 4K 60fps MP4 Export Settings</span>
+          <span style="color:var(--cyan); font-size:10px;">Zero Quality Drop</span>
+        </div>
+
+        <div class="inline-inputs">
+          <div class="control-row">
+            <div class="control-header">
+              <span>4K Bitrate Quality</span>
+            </div>
+            <select id="selectMP4Bitrate">
+              <option value="100000000" selected>100 Mbps (Near-Lossless)</option>
+              <option value="65000000">65 Mbps (Ultra 4K)</option>
+              <option value="35000000">35 Mbps (Standard 4K)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <div class="control-header">
+              <span>Gold End Hold (MP4)</span>
+            </div>
+            <input type="number" id="inputGoldExportHold" min="1" max="15" step="0.5" value="3" title="How many seconds the final Gold state holds in the exported MP4 file" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. BACKGROUND MAP TEXTURE ZOOM & VISIBILITY -->
+      <div class="section-card">
+        <div class="section-label">
+          <span>3. Background Map Line Controls</span>
         </div>
 
         <div class="control-row">
@@ -513,16 +637,16 @@
         </div>
       </div>
 
-      <!-- 3. SELECT CIRCLE TO EDIT -->
+      <!-- 4. SELECT CIRCLE TO EDIT -->
       <div class="section-card">
         <div class="section-label">
-          <span>3. Select Circle to Edit</span>
+          <span>4. Select Circle to Edit</span>
           <span id="lockStatusHint" style="color:var(--gold); font-size:10px;">Positions Locked</span>
         </div>
         <div class="node-pills" id="nodePillsContainer"></div>
       </div>
 
-      <!-- 4. SELECTED CIRCLE IMAGE & FRAMING -->
+      <!-- 5. SELECTED CIRCLE IMAGE & FRAMING -->
       <div class="section-card">
         <div class="section-label">
           <span id="selectedNodeTitle">Editing: Hero (Top Circle)</span>
@@ -690,11 +814,13 @@
       waitGrey: 1.0,
       waitBlue: 1.5,
       waitBeforeGold: 1.5,
+      goldExportHold: 3.0,
 
       speed: 1.0,
       bgMapZoom: 1.5,
       bgMapIntensity: 1.3,
       sfxEnabled: true,
+      isRenderingMP4: false,
 
       hero: {
         x: DEFAULT_LAYOUT.heroX,
@@ -727,11 +853,6 @@
       },
       subMissions: [],
 
-      // Timeline State Machine:
-      // 'EDIT' -> 'START_WAIT' -> 'WAIT_BEFORE_MID' -> 'MID_FORM' -> 'WAIT_GREY_HOLD' ->
-      // 'BEAM_TO_MID' -> 'MID_IGNITE_TICK' -> 'WAIT_BLUE_HOLD' -> 'MID_REVERSE_TRAVEL' ->
-      // 'BLACKHOLE_ABSORB' (loops to WAIT_BEFORE_MID for each middle circle) ->
-      // 'WAIT_BEFORE_GOLD' -> 'GOLD_LINE_TRAVEL' -> 'GOLD_ACHIEVEMENT_HOLD' (stays until ESC)
       isPlaying: false,
       phase: 'EDIT',
       phaseTime: 0,
@@ -750,10 +871,10 @@
       glowPulseTime: 0,
 
       // Right-Outline Blackhole Singularity State (Hero interior stays untouched)
-      rimSingularityStrength: 0, // 0..1 intensity on the right-side outline of Top Circle
-      rimAbsorbProgress: 0,      // 0..1 progress of 1.2s blackhole absorption
-      rimChargeWave: 0,          // 0..1 energy pulse traveling along Top Circle's outline after absorption
-      rimStreams: [],            // Matter/energy streams pulled from middle circle into Top Circle's right outline
+      rimSingularityStrength: 0,
+      rimAbsorbProgress: 0,
+      rimChargeWave: 0,
+      rimStreams: [],
 
       // Final Gold Achievement State
       isGoldPhase: false,
@@ -870,7 +991,7 @@
      ********************************************************************/
     let audioCtx = null;
     function ensureAudio() {
-      if (!state.sfxEnabled) return null;
+      if (!state.sfxEnabled || state.isRenderingMP4) return null;
       if (!audioCtx) {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (AC) audioCtx = new AC();
@@ -880,6 +1001,7 @@
     }
 
     function playSFX(type) {
+      if (state.isRenderingMP4) return;
       const ac = ensureAudio();
       if (!ac) return;
       const now = ac.currentTime;
@@ -930,7 +1052,6 @@
         osc.start(now);
         osc.stop(now + 0.72);
       } else if (type === 'blackhole') {
-        // 1.2s Gravitational Rim Pull + Rim Lock Chime
         const subOsc = ac.createOscillator();
         const subGain = ac.createGain();
         subOsc.type = 'sine';
@@ -988,7 +1109,6 @@
       const gx = state.goal.x;
       const gy = state.goal.y;
 
-      // Exact right-hand outline of Top Circle & left-hand outline of Bottom Circle
       const startX = hx + state.hero.radius;
       const startY = hy;
       const endX = gx - state.goal.radius;
@@ -1049,21 +1169,16 @@
       }
     }
 
-    // Spawns energy orbs & matter particles from the Middle Circle that get pulled
-    // specifically into the RIGHT SIDE of the Top Circle's outline!
     function spawnRimAbsorptionParticle(midX, midY, midRadius, heroX, heroY, heroRadius) {
-      // Pick a point on or inside the collapsing middle circle
       const srcAngle = Math.random() * Math.PI * 2;
       const srcDist = Math.random() * midRadius * 0.95;
       const sx = midX + Math.cos(srcAngle) * srcDist;
       const sy = midY + Math.sin(srcAngle) * srcDist;
 
-      // Target a point strictly along the RIGHT outline arc of the Top Circle (-48° to +48°)
       const targetRimAngle = (Math.random() - 0.5) * 1.35;
       const tx = heroX + Math.cos(targetRimAngle) * heroRadius;
       const ty = heroY + Math.sin(targetRimAngle) * heroRadius;
 
-      // Curved control point for gravitational funneling into the right border
       const cpx = (sx + tx) * 0.5 + (Math.random() - 0.3) * 90;
       const cpy = (sy + ty) * 0.5 + (Math.random() - 0.5) * 220;
 
@@ -1088,9 +1203,10 @@
       state.waitGrey = Math.max(0, parseFloat(document.getElementById('inputWaitGrey').value) || 0);
       state.waitBlue = Math.max(0, parseFloat(document.getElementById('inputWaitBlue').value) || 0);
       state.waitBeforeGold = Math.max(0, parseFloat(document.getElementById('inputWaitBeforeGold').value) || 0);
+      state.goldExportHold = Math.max(1, parseFloat(document.getElementById('inputGoldExportHold').value) || 3);
     }
 
-    function startAnimationSequence() {
+    function startAnimationSequence(skipStartWait = false) {
       readWaitTimersFromUI();
       state.isPlaying = true;
       document.body.classList.add('clean-play');
@@ -1120,7 +1236,7 @@
       state.particles = [];
       state.ripples = [];
 
-      if (state.waitStart > 0) {
+      if (!skipStartWait && state.waitStart > 0) {
         state.phase = 'START_WAIT';
         state.phaseTime = 0;
       } else {
@@ -1206,12 +1322,10 @@
       } else if (newPhase === 'MID_REVERSE_TRAVEL') {
         playSFX('reverse');
       } else if (newPhase === 'BLACKHOLE_ABSORB') {
-        // 1.2s Right-Rim Blackhole Absorption
         state.rimAbsorbProgress = 0;
         state.rimChargeWave = 0;
         playSFX('blackhole');
       } else if (newPhase === 'WAIT_BEFORE_GOLD') {
-        // User-controlled wait time after final middle circle is absorbed before Gold Line starts
         state.midNodeAlpha = 0;
         state.midNodeScale = 0;
         state.beamEndT = 0;
@@ -1242,12 +1356,10 @@
     }
 
     function updateTimeline(dt) {
-      // 1. Constant slow drift of the topographic map background
       state.bgScrollX += 16 * dt;
       state.bgScrollY += 9.5 * dt;
       state.glowPulseTime += dt;
 
-      // 2. Update Ripples
       for (let i = state.ripples.length - 1; i >= 0; i--) {
         const rp = state.ripples[i];
         rp.r += (rp.maxR - rp.r) * 5.4 * dt;
@@ -1255,7 +1367,6 @@
         if (rp.alpha <= 0) state.ripples.splice(i, 1);
       }
 
-      // 3. Update Free Particles
       for (let i = state.particles.length - 1; i >= 0; i--) {
         const pt = state.particles[i];
         pt.x += pt.vx * dt;
@@ -1266,7 +1377,6 @@
         if (pt.alpha <= 0) state.particles.splice(i, 1);
       }
 
-      // 4. Update Right-Rim Blackhole Absorption Streams
       for (let i = state.rimStreams.length - 1; i >= 0; i--) {
         const st = state.rimStreams[i];
         st.p += st.speed * dt;
@@ -1287,7 +1397,6 @@
       const pts = getCurveControlPoints();
       const scaledDt = dt * state.speed;
 
-      // PHASE 0: Wait Before Start
       if (state.phase === 'START_WAIT') {
         state.phaseTime += dt;
         if (state.phaseTime >= state.waitStart) {
@@ -1296,7 +1405,6 @@
         return;
       }
 
-      // PHASE 1: Wait Before Middle Circle Appears
       if (state.phase === 'WAIT_BEFORE_MID') {
         state.phaseTime += dt;
         if (state.phaseTime >= state.waitBeforeMid) {
@@ -1305,7 +1413,6 @@
         return;
       }
 
-      // PHASE 2: Middle Circle Formation Animation
       if (state.phase === 'MID_FORM') {
         state.phaseTime += scaledDt;
         const dur = 0.75;
@@ -1320,7 +1427,6 @@
         return;
       }
 
-      // PHASE 3: Grey Circle Hold Wait Time
       if (state.phase === 'WAIT_GREY_HOLD') {
         state.phaseTime += dt;
         if (state.phaseTime >= state.waitGrey) {
@@ -1329,7 +1435,6 @@
         return;
       }
 
-      // PHASE 4: Blue Line Travels to Middle Circle
       if (state.phase === 'BEAM_TO_MID') {
         state.phaseTime += scaledDt;
         const dur = 0.95;
@@ -1356,7 +1461,6 @@
         return;
       }
 
-      // PHASE 5: Circle Turns Blue + Tick Mark Smoothly Draws
       if (state.phase === 'MID_IGNITE_TICK') {
         state.phaseTime += scaledDt;
         const dur = 0.55;
@@ -1372,7 +1476,6 @@
         return;
       }
 
-      // PHASE 6: Blue Circle Hold Wait Time
       if (state.phase === 'WAIT_BLUE_HOLD') {
         state.phaseTime += dt;
         const midPt = getBezierPoint(0.5, pts);
@@ -1399,18 +1502,15 @@
         return;
       }
 
-      // PHASE 7: Middle Circle Moves in Reverse Along the Line Toward Top Circle's Right Rim
       if (state.phase === 'MID_REVERSE_TRAVEL') {
         state.phaseTime += scaledDt;
         const dur = 0.85;
         const p = Math.min(1, state.phaseTime / dur);
         const easeP = easeInOutCubic(p);
 
-        // Travels along the S-curve from t = 0.5 to t = 0.11 (just outside Top Circle's right outline)
         state.midNodeT = 0.5 - easeP * 0.39;
         state.beamEndT = state.midNodeT;
 
-        // Right-side outline of Top Circle begins waking up as a blackhole horizon
         if (p > 0.45) {
           state.rimSingularityStrength = ((p - 0.45) / 0.55) * 0.55;
         }
@@ -1421,7 +1521,6 @@
         return;
       }
 
-      // PHASE 8: 1.2-Second Blackhole Absorption Into Top Circle's Right-Side Outline
       if (state.phase === 'BLACKHOLE_ABSORB') {
         state.phaseTime += scaledDt;
         const dur = 1.25;
@@ -1431,11 +1530,9 @@
         const sub = state.subMissions[state.currentSubIndex] || state.subMissions[0];
 
         if (p < 0.78) {
-          // 0.0 -> 0.78: Middle circle is stretched (spaghettified) & sucked into the right-side outline
           const suckP = p / 0.78;
           const easeSuck = easeInCubic(suckP);
 
-          // Moves from t = 0.11 right into t = 0.0 (the exact right outline of Top Circle)
           state.midNodeT = 0.11 * (1 - easeSuck);
           state.beamEndT = state.midNodeT;
           state.midNodeScale = 1.0 - easeSuck * 0.65;
@@ -1443,7 +1540,6 @@
 
           state.rimSingularityStrength = 0.55 + Math.sin(suckP * Math.PI) * 0.45;
 
-          // Continuously rip glowing matter/particles off the middle circle into the right outline
           const curMidPt = getBezierPoint(state.midNodeT, pts);
           const streamCount = suckP < 0.85 ? 3 : 1;
           for (let s = 0; s < streamCount; s++) {
@@ -1457,13 +1553,11 @@
             );
           }
         } else {
-          // 0.78 -> 1.0: Middle circle is fully absorbed; energy wave travels around Top Circle's outline
           const finishP = (p - 0.78) / 0.22;
           if (state.midNodeAlpha > 0) {
             state.midNodeAlpha = 0;
             state.beamEndT = 0;
             state.hero.absorbedCount++;
-            // Subtle shockwave from the right-hand absorption point
             spawnParticlesAround(pts.startX, pts.startY, 30, COLORS.cyan, 18, 0.85);
           }
           state.rimChargeWave = easeOutCubic(finishP);
@@ -1483,7 +1577,6 @@
         return;
       }
 
-      // PHASE 9: Wait Time After Last Middle Circle Before Gold Line Starts
       if (state.phase === 'WAIT_BEFORE_GOLD') {
         state.phaseTime += dt;
         if (state.phaseTime >= state.waitBeforeGold) {
@@ -1492,7 +1585,6 @@
         return;
       }
 
-      // PHASE 10: Final Golden Line Connects Top & Bottom Circles
       if (state.phase === 'GOLD_LINE_TRAVEL') {
         state.phaseTime += scaledDt;
         const dur = 1.3;
@@ -1522,7 +1614,6 @@
         return;
       }
 
-      // PHASE 11: Infinite Golden Finale Hold (Stays until user presses ESC)
       if (state.phase === 'GOLD_ACHIEVEMENT_HOLD') {
         state.phaseTime += scaledDt;
         state.goalTickProgress = easeInOutCubic(Math.min(1, state.phaseTime / 0.65));
@@ -1557,7 +1648,6 @@
     function drawStage() {
       ctx.clearRect(0, 0, W, H);
 
-      // 1. Base #030303 + Scalable / Zoomable Irregular Topographic Map Texture
       ctx.fillStyle = COLORS.bg;
       ctx.fillRect(0, 0, W, H);
 
@@ -1583,7 +1673,6 @@
       }
       ctx.restore();
 
-      // 2. Subtle Drifting Ambient Micro-Dust
       for (const d of ambientDust) {
         const px = (((d.x - state.bgScrollX * d.speed) % W) + W) % W;
         const py = (((d.y - state.bgScrollY * d.speed) % H) + H) % H;
@@ -1596,7 +1685,6 @@
         ctx.restore();
       }
 
-      // Soft Peripheral Vignette
       const vig = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.28, W * 0.5, H * 0.5, W * 0.68);
       vig.addColorStop(0, 'rgba(3,3,3,0)');
       vig.addColorStop(1, 'rgba(0,0,0,0.62)');
@@ -1606,10 +1694,8 @@
       const pts = getCurveControlPoints();
       const breathe = 1 + Math.sin(state.glowPulseTime * 4.2) * 0.14;
 
-      // 3. Base Silver (#E0E0E0) Connecting S-Curve
       drawBezierSegment(pts, 0, 1, COLORS.silver, 15, 0, false);
 
-      // 4. Active Cyan (#00E5FF) or Gold (#FDD100) Energy Line
       if (state.beamEndT > 0.004) {
         const lineColor = state.isGoldPhase ? COLORS.gold : COLORS.cyan;
         const lineGlow = (state.isGoldPhase ? 56 : 46) * breathe;
@@ -1624,7 +1710,6 @@
         }
       }
 
-      // 5. Shockwave Ripples
       for (const rp of state.ripples) {
         ctx.save();
         ctx.strokeStyle = rp.color;
@@ -1638,7 +1723,6 @@
         ctx.restore();
       }
 
-      // 6. Middle Sub-Mission Circle (With Blackhole Tidal Stretching Into Top Circle's Right Rim)
       const activeSubIdx = state.isPlaying
         ? Math.min(state.currentSubIndex, state.subMissions.length - 1)
         : getSelectedSubIndex();
@@ -1650,15 +1734,12 @@
         const midGlow = state.midIsBlue ? 52 * breathe : 16;
 
         ctx.save();
-        // Clip outside the Top Circle's interior so the Middle Circle is physically swallowed
-        // by the right-side outline and NEVER overlaps the Top Circle's main image!
         if (state.isPlaying && state.phase === 'BLACKHOLE_ABSORB') {
           ctx.beginPath();
           ctx.rect(0, 0, W, H);
           ctx.arc(pts.hx, pts.hy, state.hero.radius + 4, 0, Math.PI * 2, true);
           ctx.clip();
 
-          // Gravitational spaghettification (stretches toward Top Circle's right rim while pinching vertically)
           const suckP = Math.min(1, state.rimAbsorbProgress / 0.78);
           const pullEase = easeInCubic(suckP);
           const angleToRim = Math.atan2(pts.startY - curvePt.y, pts.startX - curvePt.x);
@@ -1695,7 +1776,6 @@
         ctx.restore();
       }
 
-      // 7. Top-Left Hero Circle (Main Image Stays Untouched!) & Bottom-Right Main Task Circle
       const topRingColor = state.isGoldPhase ? COLORS.gold : COLORS.cyan;
       const bottomRingColor = state.goldTransition >= 0.98 ? COLORS.gold : COLORS.cyan;
       const powerBoostGlow = state.hero.absorbedCount * 5;
@@ -1719,7 +1799,6 @@
         tickProgress: 0
       });
 
-      // 8. Right-Side Outline Blackhole Singularity & Absorption Streams on Top Circle's Right Rim
       if (
         state.rimSingularityStrength > 0.01 ||
         state.rimStreams.length > 0 ||
@@ -1748,7 +1827,6 @@
         tickColor: COLORS.gold
       });
 
-      // 9. Active Free Particles
       for (const pt of state.particles) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, pt.alpha);
@@ -1762,11 +1840,9 @@
       }
     }
 
-    // Renders the Blackhole Event Horizon ONLY on the Right-Side Outline of the Top Circle
     function drawRightRimBlackholeFX(hx, hy, radius) {
       const s = state.rimSingularityStrength;
 
-      // 1. Curved Matter & Energy Streams Being Sucked Into the Right-Side Outline
       for (const st of state.rimStreams) {
         if (st.trail.length > 1) {
           ctx.save();
@@ -1798,19 +1874,16 @@
         }
       }
 
-      // 2. Glowing Gravitational Crescent & Inward Accretion Waves on the Right Rim (-55° to +55°)
       if (s > 0.01) {
         const rimX = hx + radius;
         const rimY = hy;
 
         ctx.save();
-        // Clip outside the Hero image interior so the Hero image stays 100% clean
         ctx.beginPath();
         ctx.rect(0, 0, W, H);
         ctx.arc(hx, hy, radius - 10, 0, Math.PI * 2, true);
         ctx.clip();
 
-        // Inward-pulling gravitational horizon waves converging onto the right rim
         for (let w = 0; w < 3; w++) {
           const waveP = ((state.glowPulseTime * 2.6 + w * 0.33) % 1);
           const arcRadius = radius + (1 - waveP) * 115 * s;
@@ -1827,7 +1900,6 @@
           ctx.stroke();
         }
 
-        // Intense White-Cyan Singularity Core Locked to the Right-Side Outline
         ctx.beginPath();
         ctx.arc(hx, hy, radius + 2, -0.58 * s, 0.58 * s);
         ctx.strokeStyle = COLORS.cyan;
@@ -1848,7 +1920,6 @@
         ctx.shadowBlur = 30;
         ctx.stroke();
 
-        // Focal Event Horizon Singularity Point at (hx + radius, hy)
         const flareGrad = ctx.createRadialGradient(rimX + 8, rimY, 2, rimX + 8, rimY, 95 * s);
         flareGrad.addColorStop(0, `rgba(255, 255, 255, ${0.95 * s})`);
         flareGrad.addColorStop(0.35, `rgba(0, 229, 255, ${0.75 * s})`);
@@ -1861,7 +1932,6 @@
         ctx.restore();
       }
 
-      // 3. Post-Absorption Rim Charge Wave (Travels along the outline from right edge around the ring)
       if (state.rimChargeWave > 0.01 && state.rimChargeWave < 0.99) {
         const w = state.rimChargeWave;
         const angleReach = w * Math.PI;
@@ -1875,12 +1945,10 @@
         ctx.shadowColor = COLORS.cyan;
         ctx.shadowBlur = 45;
 
-        // Upper rim pulse
         ctx.beginPath();
         ctx.arc(hx, hy, radius, -angleReach, Math.max(-0.05, -angleReach + 0.55));
         ctx.stroke();
 
-        // Lower rim pulse
         ctx.beginPath();
         ctx.arc(hx, hy, radius, Math.min(0.05, angleReach - 0.55), angleReach);
         ctx.stroke();
@@ -1950,7 +2018,6 @@
       ctx.save();
       ctx.globalAlpha = alpha;
 
-      // 1. Circular Clipped Image Interior
       ctx.save();
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -1988,7 +2055,6 @@
       ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
       ctx.restore();
 
-      // 2. Glowing Outer Ring Border
       ctx.save();
       const startAngle = -Math.PI / 2;
       const endAngle = startAngle + Math.PI * 2 * Math.min(1, ringSweep);
@@ -2022,7 +2088,6 @@
         ctx.restore();
       }
 
-      // 3. Smooth Glowing Tick Badge (✓)
       if (tickProgress && tickProgress > 0.01) {
         const badgeColor = tickColor || COLORS.cyan;
         const p = Math.min(1, tickProgress);
@@ -2070,7 +2135,6 @@
         ctx.restore();
       }
 
-      // 4. Node Title Label
       if (label && label.trim() !== '') {
         ctx.save();
         ctx.font = '800 72px "Inter", "Segoe UI", Arial, sans-serif';
@@ -2106,7 +2170,209 @@
     }
 
     /********************************************************************
-     * 8. LOCK / UNLOCK POSITIONS, RESET LAYOUT & EDITOR CONTROLS
+     * 8. FRAME-BY-FRAME 4K 60FPS MP4 EXPORTER (WebCodecs + mp4-muxer)
+     ********************************************************************/
+    let cancelRenderRequested = false;
+
+    document.getElementById('btnCancelRender').addEventListener('click', () => {
+      cancelRenderRequested = true;
+    });
+
+    async function findSupported4KCodec(bitrate) {
+      // H.264 Level 5.1 / 5.2 and HEVC / VP9 fallbacks for 3840x2160 @ 60fps
+      const candidates = [
+        { codec: 'avc1.640034', muxCodec: 'avc' },
+        { codec: 'avc1.640033', muxCodec: 'avc' },
+        { codec: 'avc1.4d0034', muxCodec: 'avc' },
+        { codec: 'avc1.4d0033', muxCodec: 'avc' },
+        { codec: 'avc1.420034', muxCodec: 'avc' },
+        { codec: 'hev1.1.6.L153.B0', muxCodec: 'hevc' },
+        { codec: 'hvc1.1.6.L153.B0', muxCodec: 'hevc' },
+        { codec: 'vp09.00.51.08', muxCodec: 'vp9' }
+      ];
+
+      for (const c of candidates) {
+        try {
+          const check = await VideoEncoder.isConfigSupported({
+            codec: c.codec,
+            width: W,
+            height: H,
+            bitrate,
+            framerate: 60
+          });
+          if (check && check.supported) {
+            return { config: check.config, muxCodec: c.muxCodec };
+          }
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function export4K60MP4() {
+      if (state.isRenderingMP4) return;
+      if (typeof VideoEncoder === 'undefined' || typeof Mp4Muxer === 'undefined') {
+        alert('Please open this app in Google Chrome or Microsoft Edge to use Hardware 4K MP4 Export.');
+        return;
+      }
+
+      readWaitTimersFromUI();
+      const bitrate = parseInt(document.getElementById('selectMP4Bitrate').value, 10) || 100000000;
+      const supported = await findSupported4KCodec(bitrate);
+      if (!supported) {
+        alert('Your GPU/browser did not report a supported 4K 60fps hardware MP4 encoder.');
+        return;
+      }
+
+      // Optional Save-As File Picker so user can pick their exact DaVinci Resolve folder
+      let fileHandle = null;
+      const defaultFileName = `motion-mindmap-4k-60fps-${Date.now()}.mp4`;
+      if (window.showSaveFilePicker) {
+        try {
+          fileHandle = await window.showSaveFilePicker({
+            suggestedName: defaultFileName,
+            types: [{
+              description: '4K MP4 Video',
+              accept: { 'video/mp4': ['.mp4'] }
+            }]
+          });
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+        }
+      }
+
+      // Compute exact total duration of the sequence for the progress bar
+      const spd = state.speed;
+      const perMidDuration =
+        state.waitBeforeMid +
+        (0.75 / spd) +
+        state.waitGrey +
+        (0.95 / spd) +
+        (0.55 / spd) +
+        state.waitBlue +
+        (0.85 / spd) +
+        (1.25 / spd);
+
+      const totalSeconds =
+        state.midCount * perMidDuration +
+        state.waitBeforeGold +
+        (1.3 / spd) +
+        (state.goldExportHold / spd);
+
+      const fps = 60;
+      const dt = 1 / fps;
+      const estTotalFrames = Math.ceil(totalSeconds * fps);
+
+      // Show Render Progress Modal
+      cancelRenderRequested = false;
+      state.isRenderingMP4 = true;
+      const modal = document.getElementById('renderModal');
+      const bar = document.getElementById('renderProgressBar');
+      const pctEl = document.getElementById('renderPercent');
+      const frameEl = document.getElementById('renderFrameText');
+      const bitrateEl = document.getElementById('renderBitrateText');
+
+      modal.classList.add('active');
+      bitrateEl.textContent = `3840×2160 • 60fps • ${Math.round(bitrate / 1000000)} Mbps`;
+
+      const muxer = new Mp4Muxer.Muxer({
+        target: new Mp4Muxer.ArrayBufferTarget(),
+        video: {
+          codec: supported.muxCodec,
+          width: W,
+          height: H,
+          frameRate: fps
+        },
+        fastStart: 'in-memory'
+      });
+
+      const encoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: (e) => console.error('VideoEncoder error:', e)
+      });
+
+      encoder.configure(supported.config);
+
+      // Initialize sequence without pre-roll start wait so the MP4 starts cleanly on frame 1
+      startAnimationSequence(true);
+
+      let frameIndex = 0;
+      const goldHoldTargetScaled = state.goldExportHold;
+
+      while (!cancelRenderRequested) {
+        drawStage();
+
+        const timestampUs = Math.round(frameIndex * (1000000 / fps));
+        const frame = new VideoFrame(canvas, {
+          timestamp: timestampUs,
+          duration: Math.round(1000000 / fps)
+        });
+
+        encoder.encode(frame, { keyFrame: frameIndex % 60 === 0 });
+        frame.close();
+
+        // Keep GPU encoder queue smooth and prevent memory spikes
+        if (encoder.encodeQueueSize > 8) {
+          await encoder.flush();
+        }
+
+        frameIndex++;
+        if (frameIndex % 4 === 0) {
+          const pct = Math.min(99, Math.round((frameIndex / estTotalFrames) * 100));
+          bar.style.width = `${pct}%`;
+          pctEl.textContent = `${pct}%`;
+          frameEl.textContent = `Frame ${frameIndex} / ~${estTotalFrames}`;
+          await new Promise((r) => setTimeout(r, 0));
+        }
+
+        updateTimeline(dt);
+
+        // Finish once Gold Achievement Hold reaches the user's Gold End Hold duration
+        if (
+          state.phase === 'GOLD_ACHIEVEMENT_HOLD' &&
+          state.phaseTime >= goldHoldTargetScaled
+        ) {
+          break;
+        }
+      }
+
+      if (!cancelRenderRequested) {
+        bar.style.width = '100%';
+        pctEl.textContent = '100%';
+        frameEl.textContent = `Finalizing MP4 container...`;
+        await new Promise((r) => setTimeout(r, 20));
+
+        await encoder.flush();
+        encoder.close();
+        muxer.finalize();
+
+        const { buffer } = muxer.target;
+        const mp4Blob = new Blob([buffer], { type: 'video/mp4' });
+
+        if (fileHandle) {
+          const writable = await fileHandle.createWritable();
+          await writable.write(mp4Blob);
+          await writable.close();
+        } else {
+          const url = URL.createObjectURL(mp4Blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = defaultFileName;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }
+      } else {
+        try { encoder.close(); } catch (_) {}
+      }
+
+      modal.classList.remove('active');
+      state.isRenderingMP4 = false;
+      stopAndResetToEdit();
+    }
+
+    document.getElementById('btnExportMP4').addEventListener('click', export4K60MP4);
+
+    /********************************************************************
+     * 9. LOCK / UNLOCK POSITIONS, RESET LAYOUT & EDITOR CONTROLS
      ********************************************************************/
     let dragTarget = null;
     let dragStartMouse = { x: 0, y: 0 };
@@ -2135,7 +2401,7 @@
     }
 
     canvas.addEventListener('mousedown', (e) => {
-      if (state.isPlaying) return;
+      if (state.isPlaying || state.isRenderingMP4) return;
       const m = clientToCanvasCoords(e.clientX, e.clientY);
       const pts = getCurveControlPoints();
       const midPt = getBezierPoint(0.5, pts);
@@ -2180,7 +2446,7 @@
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!dragTarget || state.isPlaying) return;
+      if (!dragTarget || state.isPlaying || state.isRenderingMP4) return;
       const m = clientToCanvasCoords(e.clientX, e.clientY);
       const dx = m.x - dragStartMouse.x;
       const dy = m.y - dragStartMouse.y;
@@ -2396,11 +2662,13 @@
     });
 
     document.getElementById('btnPlay').addEventListener('click', () => {
+      if (state.isRenderingMP4) return;
       ensureAudio();
-      startAnimationSequence();
+      startAnimationSequence(false);
     });
 
     document.getElementById('btnStopEdit').addEventListener('click', () => {
+      if (state.isRenderingMP4) return;
       stopAndResetToEdit();
     });
 
@@ -2419,69 +2687,34 @@
       document.getElementById('btnToggleUI').textContent = isHidden ? '👁 Hide Panel' : '👁 Show Panel';
     });
 
-    // Built-in 4K WebM Video Recorder
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    document.getElementById('btnRecord').addEventListener('click', () => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        return;
-      }
-      const stream = canvas.captureStream(60);
-      recordedChunks = [];
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : 'video/webm';
-
-      mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: 25000000
-      });
-
-      mediaRecorder.ondataavailable = (ev) => {
-        if (ev.data.size > 0) recordedChunks.push(ev.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `motion-mindmap-4k-${Date.now()}.webm`;
-        a.click();
-        document.getElementById('btnRecord').textContent = '⏺ Record 4K (.webm)';
-      };
-
-      document.getElementById('btnRecord').textContent = '⏹ Stop & Save Recording';
-      mediaRecorder.start();
-      startAnimationSequence();
-    });
-
     window.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!state.isPlaying) {
+        if (!state.isPlaying && !state.isRenderingMP4) {
           ensureAudio();
-          startAnimationSequence();
+          startAnimationSequence(false);
         }
       } else if (e.code === 'Escape') {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
+        if (state.isRenderingMP4) {
+          cancelRenderRequested = true;
+        } else {
+          stopAndResetToEdit();
         }
-        stopAndResetToEdit();
       }
     });
 
     /********************************************************************
-     * 9. MAIN 60FPS ANIMATION LOOP
+     * 10. MAIN 60FPS ANIMATION LOOP
      ********************************************************************/
     let lastTime = performance.now();
     function loop(now) {
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
-      updateTimeline(dt);
-      drawStage();
+      if (!state.isRenderingMP4) {
+        updateTimeline(dt);
+        drawStage();
+      }
       requestAnimationFrame(loop);
     }
 
