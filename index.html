@@ -1,0 +1,2493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4K Motion Mind-Map Studio</title>
+  <style>
+    :root {
+      --bg-obsidian: #030303;
+      --panel-bg: rgba(12, 14, 18, 0.93);
+      --panel-border: rgba(255, 255, 255, 0.1);
+      --silver: #E0E0E0;
+      --cyan: #00E5FF;
+      --gold: #FDD100;
+      --text-main: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --danger: #EF4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-obsidian);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    #stage-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      position: relative;
+    }
+
+    canvas#stage {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      background: var(--bg-obsidian);
+      cursor: default;
+      display: block;
+    }
+
+    canvas#stage.unlocked {
+      cursor: grab;
+    }
+
+    canvas#stage.unlocked:active {
+      cursor: grabbing;
+    }
+
+    /* Clean Playback State (Hides all UI for recording) */
+    body.clean-play .studio-ui {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(-10px);
+    }
+
+    body.clean-play canvas#stage {
+      cursor: none !important;
+    }
+
+    /* Top Action Bar */
+    .top-bar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(16px);
+      padding: 8px 14px;
+      border-radius: 14px;
+      z-index: 100;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.75);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      white-space: nowrap;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 8px 13px;
+      border-radius: 9px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s ease;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .btn.active-toggle {
+      background: rgba(0, 229, 255, 0.16);
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .btn-play {
+      background: linear-gradient(135deg, #00E5FF 0%, #0099CC 100%);
+      color: #030303;
+      border: none;
+      font-weight: 700;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.35);
+    }
+
+    .btn-play:hover {
+      background: linear-gradient(135deg, #33ECFF 0%, #00B8E6 100%);
+      box-shadow: 0 0 28px rgba(0, 229, 255, 0.6);
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #FDD100 0%, #CFA800 100%);
+      color: #030303;
+      border: none;
+      font-weight: 700;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #FCA5A5;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.28);
+    }
+
+    /* Left Studio Edit Window */
+    .edit-window {
+      position: fixed;
+      top: 74px;
+      left: 18px;
+      bottom: 18px;
+      width: 375px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(18px);
+      border-radius: 16px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85);
+      overflow: hidden;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .window-header {
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .window-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-4k {
+      background: rgba(253, 209, 0, 0.16);
+      color: var(--gold);
+      border: 1px solid rgba(253, 209, 0, 0.4);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-weight: 800;
+    }
+
+    .window-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    .window-body::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .window-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    .section-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .node-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .node-pill {
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .node-pill.active {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--cyan);
+      color: #FFF;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+    }
+
+    .node-pill.gold-pill.active {
+      background: rgba(253, 209, 0, 0.15);
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(253, 209, 0, 0.25);
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .control-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--silver);
+    }
+
+    .control-val {
+      color: var(--cyan);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--cyan);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #FFF;
+      padding: 6px 9px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      outline: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      border-color: var(--cyan);
+    }
+
+    .inline-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .upload-zone {
+      border: 1px dashed rgba(0, 229, 255, 0.4);
+      background: rgba(0, 229, 255, 0.04);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .upload-zone:hover {
+      background: rgba(0, 229, 255, 0.1);
+      border-color: var(--cyan);
+    }
+
+    .upload-zone span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--cyan);
+    }
+
+    .upload-zone small {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .hint-bar {
+      position: fixed;
+      bottom: 18px;
+      right: 20px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      z-index: 100;
+      transition: opacity 0.35s ease;
+    }
+
+    .hint-bar strong {
+      color: var(--silver);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP ACTION BAR -->
+  <div class="top-bar studio-ui">
+    <button class="btn btn-play" id="btnPlay" title="Hides UI, waits your delay, then plays full animation">
+      ▶ PLAY ANIMATION
+    </button>
+    <button class="btn" id="btnStopEdit" title="Stop animation and return to editor (or press ESC)">
+      ⏹ Stop / Edit
+    </button>
+    <button class="btn" id="btnLockToggle" title="Unlock to drag Top & Bottom circles on canvas">
+      🔒 Positions: LOCKED
+    </button>
+    <button class="btn" id="btnResetLayout" title="Snap circles back to ideal 4K motion graphic layout">
+      ⌖ Reset 4K Layout
+    </button>
+    <button class="btn btn-gold" id="btnRecord">
+      ⏺ Record 4K (.webm)
+    </button>
+    <button class="btn" id="btnFullscreen">
+      ⛶ Fullscreen
+    </button>
+    <button class="btn" id="btnToggleUI">
+      👁 Hide Panel
+    </button>
+  </div>
+
+  <!-- LEFT STUDIO EDIT WINDOW -->
+  <aside class="edit-window studio-ui" id="editWindow">
+    <div class="window-header">
+      <div class="window-title">
+        <span>Motion Studio</span>
+        <span class="badge-4k">4K UHD</span>
+      </div>
+      <span style="font-size: 11px; color: var(--text-muted);">3840 × 2160</span>
+    </div>
+
+    <div class="window-body">
+      <!-- 1. WAIT TIMERS & SEQUENCE CONTROLS -->
+      <div class="section-card">
+        <div class="section-label">
+          <span>1. Wait Time Controls (Seconds)</span>
+          <span style="color:var(--gold); font-size:10px;">Gold Holds Until ESC</span>
+        </div>
+
+        <div class="inline-inputs">
+          <div class="control-row">
+            <div class="control-header">
+              <span>Before Start Wait</span>
+            </div>
+            <input type="number" id="inputWaitStart" min="0" max="30" step="0.5" value="3" />
+          </div>
+          <div class="control-row">
+            <div class="control-header">
+              <span>Before Mid Circle</span>
+            </div>
+            <input type="number" id="inputWaitBeforeMid" min="0" max="20" step="0.5" value="1" />
+          </div>
+        </div>
+
+        <div class="inline-inputs">
+          <div class="control-row">
+            <div class="control-header">
+              <span>Grey Circle Hold</span>
+            </div>
+            <input type="number" id="inputWaitGrey" min="0" max="20" step="0.5" value="1" />
+          </div>
+          <div class="control-row">
+            <div class="control-header">
+              <span>Blue Circle Hold</span>
+            </div>
+            <input type="number" id="inputWaitBlue" min="0" max="20" step="0.5" value="1.5" />
+          </div>
+        </div>
+
+        <div class="inline-inputs">
+          <div class="control-row">
+            <div class="control-header">
+              <span style="color:var(--gold);">Before Gold Line</span>
+            </div>
+            <input type="number" id="inputWaitBeforeGold" min="0" max="20" step="0.5" value="1.5" />
+          </div>
+          <div class="control-row">
+            <div class="control-header">
+              <span>Middle Circles</span>
+            </div>
+            <input type="number" id="inputMidCount" min="1" max="12" value="3" />
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Animation Speed</span>
+            <span class="control-val" id="valSpeed">1.0x</span>
+          </div>
+          <input type="range" id="sliderSpeed" min="0.5" max="2.0" step="0.1" value="1.0" />
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 2px;">
+          <button class="btn" id="btnToggleSFX" style="flex:1; justify-content:center;">
+            🔊 SFX: ON
+          </button>
+          <button class="btn btn-danger" id="btnClearAll" style="flex:1; justify-content:center;">
+            🗑 Clear All Images
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. BACKGROUND MAP TEXTURE ZOOM & VISIBILITY -->
+      <div class="section-card">
+        <div class="section-label">
+          <span>2. Background Map Line Controls</span>
+        </div>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Map Line Zoom / Size (For All Screens)</span>
+            <span class="control-val" id="valBgZoom">1.5x</span>
+          </div>
+          <input type="range" id="sliderBgZoom" min="0.5" max="4.0" step="0.1" value="1.5" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Map Line Brightness / Visibility</span>
+            <span class="control-val" id="valBgMap">130%</span>
+          </div>
+          <input type="range" id="sliderBgMap" min="0.2" max="3.0" step="0.1" value="1.3" />
+        </div>
+      </div>
+
+      <!-- 3. SELECT CIRCLE TO EDIT -->
+      <div class="section-card">
+        <div class="section-label">
+          <span>3. Select Circle to Edit</span>
+          <span id="lockStatusHint" style="color:var(--gold); font-size:10px;">Positions Locked</span>
+        </div>
+        <div class="node-pills" id="nodePillsContainer"></div>
+      </div>
+
+      <!-- 4. SELECTED CIRCLE IMAGE & FRAMING -->
+      <div class="section-card">
+        <div class="section-label">
+          <span id="selectedNodeTitle">Editing: Hero (Top Circle)</span>
+        </div>
+
+        <label class="upload-zone" for="fileInput">
+          <span>📁 Upload PNG / JPG / JPEG Image</span>
+          <small>Remains clipped inside circle • Or drop file on canvas</small>
+          <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg, image/webp" hidden />
+        </label>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Circle Text Label</span>
+          </div>
+          <input type="text" id="inputNodeLabel" placeholder="e.g. SPIDERMAN" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Image Zoom (Size Inside Circle)</span>
+            <span class="control-val" id="valImgZoom">100%</span>
+          </div>
+          <input type="range" id="sliderImgZoom" min="0.3" max="3.5" step="0.02" value="1.0" />
+        </div>
+
+        <div class="inline-inputs">
+          <div class="control-row">
+            <div class="control-header">
+              <span>Image Pan X</span>
+              <span class="control-val" id="valImgX">0</span>
+            </div>
+            <input type="range" id="sliderImgX" min="-450" max="450" step="2" value="0" />
+          </div>
+          <div class="control-row">
+            <div class="control-header">
+              <span>Image Pan Y</span>
+              <span class="control-val" id="valImgY">0</span>
+            </div>
+            <input type="range" id="sliderImgY" min="-450" max="450" step="2" value="0" />
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-header">
+            <span>Circle Ring Size (Radius)</span>
+            <span class="control-val" id="valRadius">245px</span>
+          </div>
+          <input type="range" id="sliderRadius" min="110" max="380" step="5" value="245" />
+        </div>
+
+        <button class="btn btn-danger" id="btnRemoveNodeImg" style="justify-content:center;">
+          Remove Selected Circle Image
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- BOTTOM RIGHT HINT -->
+  <div class="hint-bar studio-ui">
+    <strong>Shift + Drag</strong> inside circle to pan image • <strong>Spacebar</strong> Play • <strong>ESC</strong> Stop Golden Hold / Show UI
+  </div>
+
+  <!-- 4K STAGE CANVAS -->
+  <div id="stage-container">
+    <canvas id="stage" width="3840" height="2160"></canvas>
+  </div>
+
+  <script>
+    /********************************************************************
+     * 1. 4K STUDIO CONFIGURATION & LOCKED BROADCAST COORDINATES
+     ********************************************************************/
+    const W = 3840;
+    const H = 2160;
+
+    const COLORS = {
+      bg: '#030303',
+      silver: '#E0E0E0',
+      cyan: '#00E5FF',
+      gold: '#FDD100'
+    };
+
+    const DEFAULT_LAYOUT = {
+      heroX: 740,
+      heroY: 590,
+      heroRadius: 245,
+      goalX: 3100,
+      goalY: 1570,
+      goalRadius: 245,
+      midRadius: 175,
+      curveDX: 0,
+      curveDY: 0
+    };
+
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+
+    function createDefaultAvatar(primaryColor, accentColor) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const g = c.getContext('2d');
+
+      const grad = g.createRadialGradient(256, 200, 40, 256, 256, 280);
+      grad.addColorStop(0, primaryColor);
+      grad.addColorStop(1, '#080a0f');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 512, 512);
+
+      g.strokeStyle = 'rgba(255,255,255,0.1)';
+      g.lineWidth = 4;
+      for (let r = 60; r <= 240; r += 60) {
+        g.beginPath();
+        g.arc(256, 256, r, 0, Math.PI * 2);
+        g.stroke();
+      }
+
+      g.fillStyle = accentColor;
+      g.beginPath();
+      g.ellipse(256, 260, 115, 145, 0, 0, Math.PI * 2);
+      g.fill();
+
+      g.strokeStyle = 'rgba(0,0,0,0.45)';
+      g.lineWidth = 5;
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+        g.beginPath();
+        g.moveTo(256, 260);
+        g.lineTo(256 + Math.cos(a) * 115, 260 + Math.sin(a) * 145);
+        g.stroke();
+      }
+
+      g.fillStyle = '#FFFFFF';
+      g.strokeStyle = '#080808';
+      g.lineWidth = 12;
+
+      g.beginPath();
+      g.moveTo(185, 220);
+      g.quadraticCurveTo(215, 210, 240, 255);
+      g.quadraticCurveTo(200, 270, 185, 220);
+      g.fill();
+      g.stroke();
+
+      g.beginPath();
+      g.moveTo(327, 220);
+      g.quadraticCurveTo(297, 210, 272, 255);
+      g.quadraticCurveTo(312, 270, 327, 220);
+      g.fill();
+      g.stroke();
+
+      return c;
+    }
+
+    const defaultHeroCanvas = createDefaultAvatar('#1b2838', '#C62828');
+    const defaultGoalCanvas = createDefaultAvatar('#2a2008', '#D32F2F');
+    const defaultSubCanvas = createDefaultAvatar('#12232E', '#0288D1');
+
+    const state = {
+      selectedKey: 'hero',
+      positionsLocked: true,
+      midCount: 3,
+
+      // User-Configurable Wait Times (Seconds)
+      waitStart: 3.0,
+      waitBeforeMid: 1.0,
+      waitGrey: 1.0,
+      waitBlue: 1.5,
+      waitBeforeGold: 1.5,
+
+      speed: 1.0,
+      bgMapZoom: 1.5,
+      bgMapIntensity: 1.3,
+      sfxEnabled: true,
+
+      hero: {
+        x: DEFAULT_LAYOUT.heroX,
+        y: DEFAULT_LAYOUT.heroY,
+        radius: DEFAULT_LAYOUT.heroRadius,
+        label: 'SPIDERMAN',
+        img: null,
+        fallback: defaultHeroCanvas,
+        zoom: 1.0,
+        panX: 0,
+        panY: 0,
+        pulseScale: 1.0,
+        absorbedCount: 0
+      },
+      goal: {
+        x: DEFAULT_LAYOUT.goalX,
+        y: DEFAULT_LAYOUT.goalY,
+        radius: DEFAULT_LAYOUT.goalRadius,
+        label: 'SPIDERMAN',
+        img: null,
+        fallback: defaultGoalCanvas,
+        zoom: 1.0,
+        panX: 0,
+        panY: 0,
+        pulseScale: 1.0
+      },
+      midCurveOffset: {
+        dx: DEFAULT_LAYOUT.curveDX,
+        dy: DEFAULT_LAYOUT.curveDY
+      },
+      subMissions: [],
+
+      // Timeline State Machine:
+      // 'EDIT' -> 'START_WAIT' -> 'WAIT_BEFORE_MID' -> 'MID_FORM' -> 'WAIT_GREY_HOLD' ->
+      // 'BEAM_TO_MID' -> 'MID_IGNITE_TICK' -> 'WAIT_BLUE_HOLD' -> 'MID_REVERSE_TRAVEL' ->
+      // 'BLACKHOLE_ABSORB' (loops to WAIT_BEFORE_MID for each middle circle) ->
+      // 'WAIT_BEFORE_GOLD' -> 'GOLD_LINE_TRAVEL' -> 'GOLD_ACHIEVEMENT_HOLD' (stays until ESC)
+      isPlaying: false,
+      phase: 'EDIT',
+      phaseTime: 0,
+      currentSubIndex: 0,
+
+      bgScrollX: 0,
+      bgScrollY: 0,
+
+      beamEndT: 0.5,
+      midNodeT: 0.5,
+      midNodeScale: 1.0,
+      midNodeAlpha: 1.0,
+      midFormSweep: 1.0,
+      midIsBlue: true,
+      tickProgress: 1.0,
+      glowPulseTime: 0,
+
+      // Right-Outline Blackhole Singularity State (Hero interior stays untouched)
+      rimSingularityStrength: 0, // 0..1 intensity on the right-side outline of Top Circle
+      rimAbsorbProgress: 0,      // 0..1 progress of 1.2s blackhole absorption
+      rimChargeWave: 0,          // 0..1 energy pulse traveling along Top Circle's outline after absorption
+      rimStreams: [],            // Matter/energy streams pulled from middle circle into Top Circle's right outline
+
+      // Final Gold Achievement State
+      isGoldPhase: false,
+      goldTransition: 0,
+      goldShimmerPos: 0,
+      goalTickProgress: 0,
+
+      particles: [],
+      ripples: []
+    };
+
+    function syncSubMissionsCount(count) {
+      state.midCount = Math.max(1, Math.min(12, count));
+      while (state.subMissions.length < state.midCount) {
+        const idx = state.subMissions.length + 1;
+        state.subMissions.push({
+          radius: DEFAULT_LAYOUT.midRadius,
+          label: `MISSION ${idx}`,
+          img: null,
+          fallback: defaultSubCanvas,
+          zoom: 1.0,
+          panX: 0,
+          panY: 0
+        });
+      }
+      if (state.subMissions.length > state.midCount) {
+        state.subMissions.length = state.midCount;
+      }
+      if (state.selectedKey.startsWith('sub-')) {
+        const idx = parseInt(state.selectedKey.split('-')[1], 10);
+        if (idx >= state.midCount) state.selectedKey = 'sub-0';
+      }
+      renderNodePills();
+      syncEditorInputs();
+    }
+
+    /********************************************************************
+     * 2. SUBTLE IRREGULAR TOPOGRAPHIC MAP BACKGROUND (#030303)
+     ********************************************************************/
+    const bgTile = document.createElement('canvas');
+    bgTile.width = 1024;
+    bgTile.height = 1024;
+
+    (function buildTopographicMapTile() {
+      const bctx = bgTile.getContext('2d');
+      const S = 1024;
+      bctx.fillStyle = '#030303';
+      bctx.fillRect(0, 0, S, S);
+
+      const TAU = Math.PI * 2;
+      function elevation(x, y) {
+        const nx = (x / S) * TAU;
+        const ny = (y / S) * TAU;
+        return (
+          Math.sin(nx * 2 + Math.cos(ny * 2)) * 0.38 +
+          Math.cos(ny * 3 - Math.sin(nx * 2)) * 0.29 +
+          Math.sin((nx + ny) * 4 + 1.3) * 0.18 +
+          Math.cos(nx * 5 - ny * 3 + 0.7) * 0.10 +
+          Math.sin(nx * 6 + ny * 5) * 0.05
+        );
+      }
+
+      const imgData = bctx.getImageData(0, 0, S, S);
+      const data = imgData.data;
+      const levels = 13;
+
+      for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) {
+          const e0 = elevation(x, y);
+          const eR1 = elevation((x + 1) % S, y);
+          const eD1 = elevation(x, (y + 1) % S);
+          const eR2 = elevation((x + 2) % S, y);
+          const eD2 = elevation(x, (y + 2) % S);
+
+          const l0 = Math.floor((e0 + 1) * 0.5 * levels);
+          const lR1 = Math.floor((eR1 + 1) * 0.5 * levels);
+          const lD1 = Math.floor((eD1 + 1) * 0.5 * levels);
+          const lR2 = Math.floor((eR2 + 1) * 0.5 * levels);
+          const lD2 = Math.floor((eD2 + 1) * 0.5 * levels);
+
+          const idx = (y * S + x) * 4;
+          const grain = (Math.random() - 0.5) * 3.5;
+          let r = 3 + grain;
+          let g = 3 + grain;
+          let b = 3 + grain;
+
+          if (l0 !== lR1 || l0 !== lD1 || l0 !== lR2 || l0 !== lD2) {
+            const isMajor = (l0 % 3 === 0);
+            const boost = isMajor ? 18 : 11;
+            r += boost;
+            g += boost + 1;
+            b += boost + 3;
+          }
+
+          data[idx] = Math.max(0, Math.min(255, r));
+          data[idx + 1] = Math.max(0, Math.min(255, g));
+          data[idx + 2] = Math.max(0, Math.min(255, b));
+          data[idx + 3] = 255;
+        }
+      }
+      bctx.putImageData(imgData, 0, 0);
+    })();
+
+    const ambientDust = Array.from({ length: 65 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 1.8 + Math.random() * 3.2,
+      alpha: 0.08 + Math.random() * 0.18,
+      speed: 0.4 + Math.random() * 0.6
+    }));
+
+    /********************************************************************
+     * 3. PROCEDURAL WEB AUDIO SFX
+     ********************************************************************/
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!state.sfxEnabled) return null;
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playSFX(type) {
+      const ac = ensureAudio();
+      if (!ac) return;
+      const now = ac.currentTime;
+
+      if (type === 'form') {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(520, now + 0.22);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.26);
+      } else if (type === 'beam') {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(390, now + 0.65);
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.72);
+      } else if (type === 'tick') {
+        [587.33, 880, 1174.66].forEach((freq, idx) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.055);
+          gain.gain.setValueAtTime(0.14, now + idx * 0.055);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.055 + 0.5);
+          osc.connect(gain).connect(ac.destination);
+          osc.start(now + idx * 0.055);
+          osc.stop(now + idx * 0.055 + 0.52);
+        });
+      } else if (type === 'reverse') {
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(420, now);
+        osc.frequency.exponentialRampToValueAtTime(170, now + 0.65);
+        gain.gain.setValueAtTime(0.09, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.72);
+      } else if (type === 'blackhole') {
+        // 1.2s Gravitational Rim Pull + Rim Lock Chime
+        const subOsc = ac.createOscillator();
+        const subGain = ac.createGain();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(145, now);
+        subOsc.frequency.exponentialRampToValueAtTime(42, now + 0.85);
+        subGain.gain.setValueAtTime(0.22, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+        subOsc.connect(subGain).connect(ac.destination);
+        subOsc.start(now);
+        subOsc.stop(now + 0.98);
+
+        [392.0, 587.33, 783.99].forEach((f, i) => {
+          const osc = ac.createOscillator();
+          const g = ac.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f * 0.85, now + 0.65 + i * 0.04);
+          osc.frequency.exponentialRampToValueAtTime(f, now + 1.05 + i * 0.04);
+          g.gain.setValueAtTime(0.11, now + 0.65 + i * 0.04);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
+          osc.connect(g).connect(ac.destination);
+          osc.start(now + 0.65 + i * 0.04);
+          osc.stop(now + 1.28);
+        });
+      } else if (type === 'gold') {
+        [261.63, 329.63, 392.0, 523.25, 659.25, 783.99].forEach((freq, i) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + i * 0.04);
+          gain.gain.setValueAtTime(0.13, now + i * 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0008, now + 2.5);
+          osc.connect(gain).connect(ac.destination);
+          osc.start(now + i * 0.04);
+          osc.stop(now + 2.55);
+        });
+      }
+    }
+
+    /********************************************************************
+     * 4. S-CURVE BÉZIER GEOMETRY & EASING FUNCTIONS
+     ********************************************************************/
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeInCubic = (t) => t * t * t;
+    const easeInOutCubic = (t) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easeOutBack = (t) => {
+      const c1 = 1.55;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    };
+
+    function getCurveControlPoints() {
+      const hx = state.hero.x;
+      const hy = state.hero.y;
+      const gx = state.goal.x;
+      const gy = state.goal.y;
+
+      // Exact right-hand outline of Top Circle & left-hand outline of Bottom Circle
+      const startX = hx + state.hero.radius;
+      const startY = hy;
+      const endX = gx - state.goal.radius;
+      const endY = gy;
+
+      const spanX = endX - startX;
+      const cp1x = startX + spanX * 0.52 + state.midCurveOffset.dx;
+      const cp1y = startY + state.midCurveOffset.dy;
+      const cp2x = endX - spanX * 0.52 + state.midCurveOffset.dx;
+      const cp2y = endY + state.midCurveOffset.dy;
+
+      return { hx, hy, gx, gy, startX, startY, cp1x, cp1y, cp2x, cp2y, endX, endY };
+    }
+
+    function getBezierPoint(t, p) {
+      const clampedT = Math.max(0, Math.min(1, t));
+      const u = 1 - clampedT;
+      const tt = clampedT * clampedT;
+      const uu = u * u;
+      const uuu = uu * u;
+      const ttt = tt * clampedT;
+
+      return {
+        x: uuu * p.startX + 3 * uu * clampedT * p.cp1x + 3 * u * tt * p.cp2x + ttt * p.endX,
+        y: uuu * p.startY + 3 * uu * clampedT * p.cp1y + 3 * u * tt * p.cp2y + ttt * p.endY
+      };
+    }
+
+    /********************************************************************
+     * 5. PARTICLE, SHOCKWAVE & RIGHT-RIM BLACKHOLE STREAM ENGINE
+     ********************************************************************/
+    function spawnRipple(x, y, startRadius, maxExpand, color, lineWidth = 9) {
+      state.ripples.push({
+        x, y,
+        r: startRadius,
+        maxR: startRadius + maxExpand,
+        alpha: 0.92,
+        color,
+        lineWidth
+      });
+    }
+
+    function spawnParticlesAround(x, y, radius, color, count = 16, speedScale = 1) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = radius * (0.65 + Math.random() * 0.45);
+        const speed = (65 + Math.random() * 190) * speedScale;
+        state.particles.push({
+          x: x + Math.cos(angle) * dist,
+          y: y + Math.sin(angle) * dist,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 25,
+          r: 3.5 + Math.random() * 5.5,
+          alpha: 0.95,
+          decay: 0.75 + Math.random() * 0.65,
+          color
+        });
+      }
+    }
+
+    // Spawns energy orbs & matter particles from the Middle Circle that get pulled
+    // specifically into the RIGHT SIDE of the Top Circle's outline!
+    function spawnRimAbsorptionParticle(midX, midY, midRadius, heroX, heroY, heroRadius) {
+      // Pick a point on or inside the collapsing middle circle
+      const srcAngle = Math.random() * Math.PI * 2;
+      const srcDist = Math.random() * midRadius * 0.95;
+      const sx = midX + Math.cos(srcAngle) * srcDist;
+      const sy = midY + Math.sin(srcAngle) * srcDist;
+
+      // Target a point strictly along the RIGHT outline arc of the Top Circle (-48° to +48°)
+      const targetRimAngle = (Math.random() - 0.5) * 1.35;
+      const tx = heroX + Math.cos(targetRimAngle) * heroRadius;
+      const ty = heroY + Math.sin(targetRimAngle) * heroRadius;
+
+      // Curved control point for gravitational funneling into the right border
+      const cpx = (sx + tx) * 0.5 + (Math.random() - 0.3) * 90;
+      const cpy = (sy + ty) * 0.5 + (Math.random() - 0.5) * 220;
+
+      state.rimStreams.push({
+        sx, sy,
+        cpx, cpy,
+        tx, ty,
+        p: 0,
+        speed: 1.55 + Math.random() * 1.35,
+        size: 4.5 + Math.random() * 9.5,
+        color: Math.random() > 0.28 ? COLORS.cyan : '#FFFFFF',
+        trail: []
+      });
+    }
+
+    /********************************************************************
+     * 6. MASTER TIMELINE CHOREOGRAPHY
+     ********************************************************************/
+    function readWaitTimersFromUI() {
+      state.waitStart = Math.max(0, parseFloat(document.getElementById('inputWaitStart').value) || 0);
+      state.waitBeforeMid = Math.max(0, parseFloat(document.getElementById('inputWaitBeforeMid').value) || 0);
+      state.waitGrey = Math.max(0, parseFloat(document.getElementById('inputWaitGrey').value) || 0);
+      state.waitBlue = Math.max(0, parseFloat(document.getElementById('inputWaitBlue').value) || 0);
+      state.waitBeforeGold = Math.max(0, parseFloat(document.getElementById('inputWaitBeforeGold').value) || 0);
+    }
+
+    function startAnimationSequence() {
+      readWaitTimersFromUI();
+      state.isPlaying = true;
+      document.body.classList.add('clean-play');
+
+      state.currentSubIndex = 0;
+      state.beamEndT = 0;
+      state.midNodeT = 0.5;
+      state.midNodeScale = 0;
+      state.midNodeAlpha = 0;
+      state.midFormSweep = 0;
+      state.midIsBlue = false;
+      state.tickProgress = 0;
+      state.glowPulseTime = 0;
+
+      state.rimSingularityStrength = 0;
+      state.rimAbsorbProgress = 0;
+      state.rimChargeWave = 0;
+      state.rimStreams = [];
+
+      state.isGoldPhase = false;
+      state.goldTransition = 0;
+      state.goldShimmerPos = 0;
+      state.goalTickProgress = 0;
+      state.hero.pulseScale = 1.0;
+      state.hero.absorbedCount = 0;
+      state.goal.pulseScale = 1.0;
+      state.particles = [];
+      state.ripples = [];
+
+      if (state.waitStart > 0) {
+        state.phase = 'START_WAIT';
+        state.phaseTime = 0;
+      } else {
+        enterPhase('WAIT_BEFORE_MID');
+      }
+    }
+
+    function stopAndResetToEdit() {
+      state.isPlaying = false;
+      state.phase = 'EDIT';
+      document.body.classList.remove('clean-play');
+
+      state.beamEndT = 0.5;
+      state.midNodeT = 0.5;
+      state.midNodeScale = 1.0;
+      state.midNodeAlpha = 1.0;
+      state.midFormSweep = 1.0;
+      state.midIsBlue = true;
+      state.tickProgress = 1.0;
+
+      state.rimSingularityStrength = 0;
+      state.rimAbsorbProgress = 0;
+      state.rimChargeWave = 0;
+      state.rimStreams = [];
+
+      state.isGoldPhase = false;
+      state.goldTransition = 0;
+      state.goalTickProgress = 0;
+      state.hero.pulseScale = 1.0;
+      state.hero.absorbedCount = 0;
+      state.goal.pulseScale = 1.0;
+      state.particles = [];
+      state.ripples = [];
+    }
+
+    function enterPhase(newPhase) {
+      state.phase = newPhase;
+      state.phaseTime = 0;
+      const pts = getCurveControlPoints();
+
+      if (newPhase === 'WAIT_BEFORE_MID') {
+        state.beamEndT = 0;
+        state.midNodeAlpha = 0;
+        state.midNodeScale = 0;
+        state.rimSingularityStrength = 0;
+        state.rimAbsorbProgress = 0;
+        state.rimChargeWave = 0;
+        if (state.waitBeforeMid <= 0) {
+          enterPhase('MID_FORM');
+        }
+      } else if (newPhase === 'MID_FORM') {
+        state.midNodeT = 0.5;
+        state.midNodeScale = 0.72;
+        state.midNodeAlpha = 0;
+        state.midFormSweep = 0;
+        state.midIsBlue = false;
+        state.tickProgress = 0;
+        state.beamEndT = 0;
+        playSFX('form');
+      } else if (newPhase === 'WAIT_GREY_HOLD') {
+        state.midNodeScale = 1.0;
+        state.midNodeAlpha = 1.0;
+        state.midFormSweep = 1.0;
+        state.midIsBlue = false;
+        if (state.waitGrey <= 0) {
+          enterPhase('BEAM_TO_MID');
+        }
+      } else if (newPhase === 'BEAM_TO_MID') {
+        state.beamEndT = 0;
+        playSFX('beam');
+      } else if (newPhase === 'MID_IGNITE_TICK') {
+        state.midIsBlue = true;
+        state.tickProgress = 0;
+        const midPt = getBezierPoint(0.5, pts);
+        const sub = state.subMissions[state.currentSubIndex] || state.subMissions[0];
+        spawnRipple(midPt.x, midPt.y, sub.radius, 145, COLORS.cyan, 8);
+        spawnParticlesAround(midPt.x, midPt.y, sub.radius, COLORS.cyan, 22, 1.0);
+        playSFX('tick');
+      } else if (newPhase === 'WAIT_BLUE_HOLD') {
+        if (state.waitBlue <= 0) {
+          enterPhase('MID_REVERSE_TRAVEL');
+        }
+      } else if (newPhase === 'MID_REVERSE_TRAVEL') {
+        playSFX('reverse');
+      } else if (newPhase === 'BLACKHOLE_ABSORB') {
+        // 1.2s Right-Rim Blackhole Absorption
+        state.rimAbsorbProgress = 0;
+        state.rimChargeWave = 0;
+        playSFX('blackhole');
+      } else if (newPhase === 'WAIT_BEFORE_GOLD') {
+        // User-controlled wait time after final middle circle is absorbed before Gold Line starts
+        state.midNodeAlpha = 0;
+        state.midNodeScale = 0;
+        state.beamEndT = 0;
+        state.rimSingularityStrength = 0;
+        state.rimChargeWave = 0;
+        if (state.waitBeforeGold <= 0) {
+          enterPhase('GOLD_LINE_TRAVEL');
+        }
+      } else if (newPhase === 'GOLD_LINE_TRAVEL') {
+        state.midNodeAlpha = 0;
+        state.rimSingularityStrength = 0;
+        state.isGoldPhase = true;
+        state.beamEndT = 0;
+        state.goldTransition = 0.35;
+        spawnRipple(pts.hx, pts.hy, state.hero.radius, 150, COLORS.gold, 9);
+        playSFX('beam');
+      } else if (newPhase === 'GOLD_ACHIEVEMENT_HOLD') {
+        state.beamEndT = 1.0;
+        state.goldTransition = 1.0;
+        state.goalTickProgress = 0;
+        spawnRipple(pts.gx, pts.gy, state.goal.radius, 230, COLORS.gold, 12);
+        spawnRipple(pts.gx, pts.gy, state.goal.radius * 0.85, 320, COLORS.gold, 6);
+        spawnRipple(pts.hx, pts.hy, state.hero.radius, 170, COLORS.gold, 8);
+        spawnParticlesAround(pts.gx, pts.gy, state.goal.radius, COLORS.gold, 45, 1.4);
+        spawnParticlesAround(pts.hx, pts.hy, state.hero.radius, COLORS.gold, 26, 1.1);
+        playSFX('gold');
+      }
+    }
+
+    function updateTimeline(dt) {
+      // 1. Constant slow drift of the topographic map background
+      state.bgScrollX += 16 * dt;
+      state.bgScrollY += 9.5 * dt;
+      state.glowPulseTime += dt;
+
+      // 2. Update Ripples
+      for (let i = state.ripples.length - 1; i >= 0; i--) {
+        const rp = state.ripples[i];
+        rp.r += (rp.maxR - rp.r) * 5.4 * dt;
+        rp.alpha -= 1.15 * dt;
+        if (rp.alpha <= 0) state.ripples.splice(i, 1);
+      }
+
+      // 3. Update Free Particles
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const pt = state.particles[i];
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.vx *= 0.96;
+        pt.vy *= 0.96;
+        pt.alpha -= pt.decay * dt;
+        if (pt.alpha <= 0) state.particles.splice(i, 1);
+      }
+
+      // 4. Update Right-Rim Blackhole Absorption Streams
+      for (let i = state.rimStreams.length - 1; i >= 0; i--) {
+        const st = state.rimStreams[i];
+        st.p += st.speed * dt;
+        const t = Math.min(1, st.p);
+        const u = 1 - t;
+        const cx = u * u * st.sx + 2 * u * t * st.cpx + t * t * st.tx;
+        const cy = u * u * st.sy + 2 * u * t * st.cpy + t * t * st.ty;
+        st.trail.push({ x: cx, y: cy });
+        if (st.trail.length > 6) st.trail.shift();
+
+        if (st.p >= 1) {
+          state.rimStreams.splice(i, 1);
+        }
+      }
+
+      if (!state.isPlaying) return;
+
+      const pts = getCurveControlPoints();
+      const scaledDt = dt * state.speed;
+
+      // PHASE 0: Wait Before Start
+      if (state.phase === 'START_WAIT') {
+        state.phaseTime += dt;
+        if (state.phaseTime >= state.waitStart) {
+          enterPhase('WAIT_BEFORE_MID');
+        }
+        return;
+      }
+
+      // PHASE 1: Wait Before Middle Circle Appears
+      if (state.phase === 'WAIT_BEFORE_MID') {
+        state.phaseTime += dt;
+        if (state.phaseTime >= state.waitBeforeMid) {
+          enterPhase('MID_FORM');
+        }
+        return;
+      }
+
+      // PHASE 2: Middle Circle Formation Animation
+      if (state.phase === 'MID_FORM') {
+        state.phaseTime += scaledDt;
+        const dur = 0.75;
+        const p = Math.min(1, state.phaseTime / dur);
+        state.midFormSweep = easeInOutCubic(p);
+        state.midNodeAlpha = easeOutCubic(Math.min(1, p * 1.4));
+        state.midNodeScale = 0.76 + 0.24 * easeOutBack(p);
+
+        if (p >= 1) {
+          enterPhase('WAIT_GREY_HOLD');
+        }
+        return;
+      }
+
+      // PHASE 3: Grey Circle Hold Wait Time
+      if (state.phase === 'WAIT_GREY_HOLD') {
+        state.phaseTime += dt;
+        if (state.phaseTime >= state.waitGrey) {
+          enterPhase('BEAM_TO_MID');
+        }
+        return;
+      }
+
+      // PHASE 4: Blue Line Travels to Middle Circle
+      if (state.phase === 'BEAM_TO_MID') {
+        state.phaseTime += scaledDt;
+        const dur = 0.95;
+        const p = Math.min(1, state.phaseTime / dur);
+        state.beamEndT = easeInOutCubic(p) * 0.5;
+
+        const tip = getBezierPoint(state.beamEndT, pts);
+        if (Math.random() < 0.55) {
+          state.particles.push({
+            x: tip.x + (Math.random() - 0.5) * 16,
+            y: tip.y + (Math.random() - 0.5) * 16,
+            vx: (Math.random() - 0.5) * 110,
+            vy: (Math.random() - 0.5) * 110,
+            r: 3 + Math.random() * 4,
+            alpha: 0.85,
+            decay: 1.9,
+            color: COLORS.cyan
+          });
+        }
+
+        if (p >= 1) {
+          enterPhase('MID_IGNITE_TICK');
+        }
+        return;
+      }
+
+      // PHASE 5: Circle Turns Blue + Tick Mark Smoothly Draws
+      if (state.phase === 'MID_IGNITE_TICK') {
+        state.phaseTime += scaledDt;
+        const dur = 0.55;
+        const p = Math.min(1, state.phaseTime / dur);
+        state.tickProgress = easeInOutCubic(p);
+        state.midNodeScale = 1.0 + Math.sin(p * Math.PI) * 0.06;
+
+        if (p >= 1) {
+          state.midNodeScale = 1.0;
+          state.tickProgress = 1.0;
+          enterPhase('WAIT_BLUE_HOLD');
+        }
+        return;
+      }
+
+      // PHASE 6: Blue Circle Hold Wait Time
+      if (state.phase === 'WAIT_BLUE_HOLD') {
+        state.phaseTime += dt;
+        const midPt = getBezierPoint(0.5, pts);
+        const sub = state.subMissions[state.currentSubIndex] || state.subMissions[0];
+
+        if (Math.random() < 0.48) {
+          const ang = Math.random() * Math.PI * 2;
+          const r = sub.radius * (0.85 + Math.random() * 0.25);
+          state.particles.push({
+            x: midPt.x + Math.cos(ang) * r,
+            y: midPt.y + Math.sin(ang) * r,
+            vx: Math.cos(ang) * 55,
+            vy: Math.sin(ang) * 55 - 30,
+            r: 3 + Math.random() * 4.5,
+            alpha: 0.88,
+            decay: 1.1,
+            color: COLORS.cyan
+          });
+        }
+
+        if (state.phaseTime >= state.waitBlue) {
+          enterPhase('MID_REVERSE_TRAVEL');
+        }
+        return;
+      }
+
+      // PHASE 7: Middle Circle Moves in Reverse Along the Line Toward Top Circle's Right Rim
+      if (state.phase === 'MID_REVERSE_TRAVEL') {
+        state.phaseTime += scaledDt;
+        const dur = 0.85;
+        const p = Math.min(1, state.phaseTime / dur);
+        const easeP = easeInOutCubic(p);
+
+        // Travels along the S-curve from t = 0.5 to t = 0.11 (just outside Top Circle's right outline)
+        state.midNodeT = 0.5 - easeP * 0.39;
+        state.beamEndT = state.midNodeT;
+
+        // Right-side outline of Top Circle begins waking up as a blackhole horizon
+        if (p > 0.45) {
+          state.rimSingularityStrength = ((p - 0.45) / 0.55) * 0.55;
+        }
+
+        if (p >= 1) {
+          enterPhase('BLACKHOLE_ABSORB');
+        }
+        return;
+      }
+
+      // PHASE 8: 1.2-Second Blackhole Absorption Into Top Circle's Right-Side Outline
+      if (state.phase === 'BLACKHOLE_ABSORB') {
+        state.phaseTime += scaledDt;
+        const dur = 1.25;
+        const p = Math.min(1, state.phaseTime / dur);
+        state.rimAbsorbProgress = p;
+
+        const sub = state.subMissions[state.currentSubIndex] || state.subMissions[0];
+
+        if (p < 0.78) {
+          // 0.0 -> 0.78: Middle circle is stretched (spaghettified) & sucked into the right-side outline
+          const suckP = p / 0.78;
+          const easeSuck = easeInCubic(suckP);
+
+          // Moves from t = 0.11 right into t = 0.0 (the exact right outline of Top Circle)
+          state.midNodeT = 0.11 * (1 - easeSuck);
+          state.beamEndT = state.midNodeT;
+          state.midNodeScale = 1.0 - easeSuck * 0.65;
+          state.midNodeAlpha = 1.0 - Math.pow(suckP, 2.4);
+
+          state.rimSingularityStrength = 0.55 + Math.sin(suckP * Math.PI) * 0.45;
+
+          // Continuously rip glowing matter/particles off the middle circle into the right outline
+          const curMidPt = getBezierPoint(state.midNodeT, pts);
+          const streamCount = suckP < 0.85 ? 3 : 1;
+          for (let s = 0; s < streamCount; s++) {
+            spawnRimAbsorptionParticle(
+              curMidPt.x,
+              curMidPt.y,
+              sub.radius * state.midNodeScale,
+              pts.hx,
+              pts.hy,
+              state.hero.radius
+            );
+          }
+        } else {
+          // 0.78 -> 1.0: Middle circle is fully absorbed; energy wave travels around Top Circle's outline
+          const finishP = (p - 0.78) / 0.22;
+          if (state.midNodeAlpha > 0) {
+            state.midNodeAlpha = 0;
+            state.beamEndT = 0;
+            state.hero.absorbedCount++;
+            // Subtle shockwave from the right-hand absorption point
+            spawnParticlesAround(pts.startX, pts.startY, 30, COLORS.cyan, 18, 0.85);
+          }
+          state.rimChargeWave = easeOutCubic(finishP);
+          state.rimSingularityStrength = 0.55 * (1 - easeOutCubic(finishP));
+        }
+
+        if (p >= 1) {
+          state.rimSingularityStrength = 0;
+          state.rimChargeWave = 0;
+          state.currentSubIndex++;
+          if (state.currentSubIndex < state.midCount) {
+            enterPhase('WAIT_BEFORE_MID');
+          } else {
+            enterPhase('WAIT_BEFORE_GOLD');
+          }
+        }
+        return;
+      }
+
+      // PHASE 9: Wait Time After Last Middle Circle Before Gold Line Starts
+      if (state.phase === 'WAIT_BEFORE_GOLD') {
+        state.phaseTime += dt;
+        if (state.phaseTime >= state.waitBeforeGold) {
+          enterPhase('GOLD_LINE_TRAVEL');
+        }
+        return;
+      }
+
+      // PHASE 10: Final Golden Line Connects Top & Bottom Circles
+      if (state.phase === 'GOLD_LINE_TRAVEL') {
+        state.phaseTime += scaledDt;
+        const dur = 1.3;
+        const p = Math.min(1, state.phaseTime / dur);
+        const easeP = easeInOutCubic(p);
+
+        state.beamEndT = easeP;
+        state.goldTransition = 0.35 + easeP * 0.65;
+
+        const tip = getBezierPoint(state.beamEndT, pts);
+        if (Math.random() < 0.75) {
+          state.particles.push({
+            x: tip.x + (Math.random() - 0.5) * 18,
+            y: tip.y + (Math.random() - 0.5) * 18,
+            vx: (Math.random() - 0.5) * 140,
+            vy: (Math.random() - 0.5) * 140,
+            r: 4 + Math.random() * 5.5,
+            alpha: 0.95,
+            decay: 1.5,
+            color: COLORS.gold
+          });
+        }
+
+        if (p >= 1) {
+          enterPhase('GOLD_ACHIEVEMENT_HOLD');
+        }
+        return;
+      }
+
+      // PHASE 11: Infinite Golden Finale Hold (Stays until user presses ESC)
+      if (state.phase === 'GOLD_ACHIEVEMENT_HOLD') {
+        state.phaseTime += scaledDt;
+        state.goalTickProgress = easeInOutCubic(Math.min(1, state.phaseTime / 0.65));
+        state.goldShimmerPos = (state.phaseTime * 0.45) % 1.4;
+
+        if (state.phaseTime < 0.6) {
+          state.goal.pulseScale = 1.0 + Math.sin((state.phaseTime / 0.6) * Math.PI) * 0.065;
+        } else {
+          state.goal.pulseScale = 1.0;
+        }
+
+        if (Math.random() < 0.38) {
+          const randT = Math.random();
+          const cPt = getBezierPoint(randT, pts);
+          state.particles.push({
+            x: cPt.x + (Math.random() - 0.5) * 160,
+            y: cPt.y + (Math.random() - 0.5) * 120,
+            vx: (Math.random() - 0.5) * 45,
+            vy: -45 - Math.random() * 80,
+            r: 3.5 + Math.random() * 5,
+            alpha: 0.85,
+            decay: 0.65,
+            color: COLORS.gold
+          });
+        }
+      }
+    }
+
+    /********************************************************************
+     * 7. 4K UHD CANVAS RENDERER
+     ********************************************************************/
+    function drawStage() {
+      ctx.clearRect(0, 0, W, H);
+
+      // 1. Base #030303 + Scalable / Zoomable Irregular Topographic Map Texture
+      ctx.fillStyle = COLORS.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const scaledTileS = Math.round(bgTile.width * state.bgMapZoom);
+      const ox = ((-state.bgScrollX * state.bgMapZoom % scaledTileS) + scaledTileS) % scaledTileS;
+      const oy = ((-state.bgScrollY * state.bgMapZoom % scaledTileS) + scaledTileS) % scaledTileS;
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, state.bgMapIntensity);
+      for (let x = ox - scaledTileS; x < W; x += scaledTileS) {
+        for (let y = oy - scaledTileS; y < H; y += scaledTileS) {
+          ctx.drawImage(bgTile, x, y, scaledTileS, scaledTileS);
+        }
+      }
+      if (state.bgMapIntensity > 1.0) {
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = Math.min(1, (state.bgMapIntensity - 1.0) * 0.65);
+        for (let x = ox - scaledTileS; x < W; x += scaledTileS) {
+          for (let y = oy - scaledTileS; y < H; y += scaledTileS) {
+            ctx.drawImage(bgTile, x, y, scaledTileS, scaledTileS);
+          }
+        }
+      }
+      ctx.restore();
+
+      // 2. Subtle Drifting Ambient Micro-Dust
+      for (const d of ambientDust) {
+        const px = (((d.x - state.bgScrollX * d.speed) % W) + W) % W;
+        const py = (((d.y - state.bgScrollY * d.speed) % H) + H) % H;
+        ctx.save();
+        ctx.globalAlpha = d.alpha;
+        ctx.fillStyle = '#E0E0E0';
+        ctx.beginPath();
+        ctx.arc(px, py, d.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Soft Peripheral Vignette
+      const vig = ctx.createRadialGradient(W * 0.5, H * 0.5, W * 0.28, W * 0.5, H * 0.5, W * 0.68);
+      vig.addColorStop(0, 'rgba(3,3,3,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.62)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+
+      const pts = getCurveControlPoints();
+      const breathe = 1 + Math.sin(state.glowPulseTime * 4.2) * 0.14;
+
+      // 3. Base Silver (#E0E0E0) Connecting S-Curve
+      drawBezierSegment(pts, 0, 1, COLORS.silver, 15, 0, false);
+
+      // 4. Active Cyan (#00E5FF) or Gold (#FDD100) Energy Line
+      if (state.beamEndT > 0.004) {
+        const lineColor = state.isGoldPhase ? COLORS.gold : COLORS.cyan;
+        const lineGlow = (state.isGoldPhase ? 56 : 46) * breathe;
+        drawBezierSegment(pts, 0, state.beamEndT, lineColor, 20, lineGlow, true);
+
+        if (state.phase === 'GOLD_ACHIEVEMENT_HOLD' && state.goldShimmerPos <= 1.0) {
+          const s0 = Math.max(0, state.goldShimmerPos - 0.12);
+          const s1 = Math.min(1, state.goldShimmerPos + 0.12);
+          if (s1 > s0) {
+            drawBezierSegment(pts, s0, s1, '#FFFFFF', 12, 35, false);
+          }
+        }
+      }
+
+      // 5. Shockwave Ripples
+      for (const rp of state.ripples) {
+        ctx.save();
+        ctx.strokeStyle = rp.color;
+        ctx.globalAlpha = Math.max(0, rp.alpha);
+        ctx.lineWidth = rp.lineWidth || 9;
+        ctx.shadowColor = rp.color;
+        ctx.shadowBlur = 32;
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, Math.max(1, rp.r), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 6. Middle Sub-Mission Circle (With Blackhole Tidal Stretching Into Top Circle's Right Rim)
+      const activeSubIdx = state.isPlaying
+        ? Math.min(state.currentSubIndex, state.subMissions.length - 1)
+        : getSelectedSubIndex();
+      const subNode = state.subMissions[activeSubIdx];
+
+      if (subNode && state.midNodeAlpha > 0.01 && state.midNodeScale > 0.01) {
+        const curvePt = getBezierPoint(state.midNodeT, pts);
+        const midRingColor = state.midIsBlue ? COLORS.cyan : COLORS.silver;
+        const midGlow = state.midIsBlue ? 52 * breathe : 16;
+
+        ctx.save();
+        // Clip outside the Top Circle's interior so the Middle Circle is physically swallowed
+        // by the right-side outline and NEVER overlaps the Top Circle's main image!
+        if (state.isPlaying && state.phase === 'BLACKHOLE_ABSORB') {
+          ctx.beginPath();
+          ctx.rect(0, 0, W, H);
+          ctx.arc(pts.hx, pts.hy, state.hero.radius + 4, 0, Math.PI * 2, true);
+          ctx.clip();
+
+          // Gravitational spaghettification (stretches toward Top Circle's right rim while pinching vertically)
+          const suckP = Math.min(1, state.rimAbsorbProgress / 0.78);
+          const pullEase = easeInCubic(suckP);
+          const angleToRim = Math.atan2(pts.startY - curvePt.y, pts.startX - curvePt.x);
+          const stretchX = 1.0 + pullEase * 1.45;
+          const pinchY = Math.max(0.12, 1.0 - pullEase * 0.85);
+
+          ctx.translate(curvePt.x, curvePt.y);
+          ctx.rotate(angleToRim);
+          ctx.scale(stretchX, pinchY);
+          ctx.rotate(-angleToRim);
+          ctx.translate(-curvePt.x, -curvePt.y);
+        }
+
+        drawCircleNode({
+          x: curvePt.x,
+          y: curvePt.y,
+          radius: subNode.radius * state.midNodeScale,
+          alpha: state.midNodeAlpha,
+          ringColor: midRingColor,
+          glowStrength: midGlow,
+          ringSweep: state.midFormSweep,
+          img: subNode.img || subNode.fallback,
+          zoom: subNode.zoom,
+          panX: subNode.panX,
+          panY: subNode.panY,
+          label: state.phase === 'BLACKHOLE_ABSORB' ? '' : subNode.label,
+          labelPos: 'bottom',
+          desaturate: !state.midIsBlue,
+          isSelected: !state.isPlaying && state.selectedKey === `sub-${activeSubIdx}`,
+          tickProgress: state.midIsBlue ? state.tickProgress : 0,
+          tickColor: COLORS.cyan,
+          subCounterText: `${activeSubIdx + 1} / ${state.midCount}`
+        });
+        ctx.restore();
+      }
+
+      // 7. Top-Left Hero Circle (Main Image Stays Untouched!) & Bottom-Right Main Task Circle
+      const topRingColor = state.isGoldPhase ? COLORS.gold : COLORS.cyan;
+      const bottomRingColor = state.goldTransition >= 0.98 ? COLORS.gold : COLORS.cyan;
+      const powerBoostGlow = state.hero.absorbedCount * 5;
+
+      drawCircleNode({
+        x: pts.hx,
+        y: pts.hy,
+        radius: state.hero.radius * state.hero.pulseScale,
+        alpha: 1,
+        ringColor: topRingColor,
+        glowStrength: (state.isGoldPhase ? 68 : 48 + powerBoostGlow) * breathe,
+        ringSweep: 1,
+        img: state.hero.img || state.hero.fallback,
+        zoom: state.hero.zoom,
+        panX: state.hero.panX,
+        panY: state.hero.panY,
+        label: state.hero.label,
+        labelPos: 'bottom',
+        desaturate: false,
+        isSelected: !state.isPlaying && state.selectedKey === 'hero',
+        tickProgress: 0
+      });
+
+      // 8. Right-Side Outline Blackhole Singularity & Absorption Streams on Top Circle's Right Rim
+      if (
+        state.rimSingularityStrength > 0.01 ||
+        state.rimStreams.length > 0 ||
+        state.rimChargeWave > 0.01
+      ) {
+        drawRightRimBlackholeFX(pts.hx, pts.hy, state.hero.radius);
+      }
+
+      drawCircleNode({
+        x: pts.gx,
+        y: pts.gy,
+        radius: state.goal.radius * state.goal.pulseScale,
+        alpha: 1,
+        ringColor: bottomRingColor,
+        glowStrength: (state.goldTransition >= 0.98 ? 74 : 48) * breathe,
+        ringSweep: 1,
+        img: state.goal.img || state.goal.fallback,
+        zoom: state.goal.zoom,
+        panX: state.goal.panX,
+        panY: state.goal.panY,
+        label: state.goal.label,
+        labelPos: 'top',
+        desaturate: false,
+        isSelected: !state.isPlaying && state.selectedKey === 'goal',
+        tickProgress: state.goalTickProgress,
+        tickColor: COLORS.gold
+      });
+
+      // 9. Active Free Particles
+      for (const pt of state.particles) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, pt.alpha);
+        ctx.fillStyle = pt.color;
+        ctx.shadowColor = pt.color;
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Renders the Blackhole Event Horizon ONLY on the Right-Side Outline of the Top Circle
+    function drawRightRimBlackholeFX(hx, hy, radius) {
+      const s = state.rimSingularityStrength;
+
+      // 1. Curved Matter & Energy Streams Being Sucked Into the Right-Side Outline
+      for (const st of state.rimStreams) {
+        if (st.trail.length > 1) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(st.trail[0].x, st.trail[0].y);
+          for (let i = 1; i < st.trail.length; i++) {
+            ctx.lineTo(st.trail[i].x, st.trail[i].y);
+          }
+          ctx.strokeStyle = st.color;
+          ctx.globalAlpha = 0.72;
+          ctx.lineWidth = st.size * 0.75;
+          ctx.lineCap = 'round';
+          ctx.shadowColor = COLORS.cyan;
+          ctx.shadowBlur = 22;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        const head = st.trail[st.trail.length - 1];
+        if (head) {
+          ctx.save();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.shadowColor = COLORS.cyan;
+          ctx.shadowBlur = 25;
+          ctx.beginPath();
+          ctx.arc(head.x, head.y, st.size * (1 - st.p * 0.55), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      // 2. Glowing Gravitational Crescent & Inward Accretion Waves on the Right Rim (-55° to +55°)
+      if (s > 0.01) {
+        const rimX = hx + radius;
+        const rimY = hy;
+
+        ctx.save();
+        // Clip outside the Hero image interior so the Hero image stays 100% clean
+        ctx.beginPath();
+        ctx.rect(0, 0, W, H);
+        ctx.arc(hx, hy, radius - 10, 0, Math.PI * 2, true);
+        ctx.clip();
+
+        // Inward-pulling gravitational horizon waves converging onto the right rim
+        for (let w = 0; w < 3; w++) {
+          const waveP = ((state.glowPulseTime * 2.6 + w * 0.33) % 1);
+          const arcRadius = radius + (1 - waveP) * 115 * s;
+          const spread = 0.55 * (0.6 + waveP * 0.4);
+
+          ctx.beginPath();
+          ctx.arc(hx, hy, arcRadius, -spread, spread);
+          ctx.strokeStyle = w === 0 ? '#FFFFFF' : COLORS.cyan;
+          ctx.globalAlpha = waveP * (1 - waveP) * 2.8 * s;
+          ctx.lineWidth = 8 + w * 3;
+          ctx.lineCap = 'round';
+          ctx.shadowColor = COLORS.cyan;
+          ctx.shadowBlur = 35;
+          ctx.stroke();
+        }
+
+        // Intense White-Cyan Singularity Core Locked to the Right-Side Outline
+        ctx.beginPath();
+        ctx.arc(hx, hy, radius + 2, -0.58 * s, 0.58 * s);
+        ctx.strokeStyle = COLORS.cyan;
+        ctx.globalAlpha = Math.min(1, s * 1.15);
+        ctx.lineWidth = 34 * s;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = COLORS.cyan;
+        ctx.shadowBlur = 65;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(hx, hy, radius + 2, -0.38 * s, 0.38 * s);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.globalAlpha = Math.min(1, s);
+        ctx.lineWidth = 14 * s;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#FFFFFF';
+        ctx.shadowBlur = 30;
+        ctx.stroke();
+
+        // Focal Event Horizon Singularity Point at (hx + radius, hy)
+        const flareGrad = ctx.createRadialGradient(rimX + 8, rimY, 2, rimX + 8, rimY, 95 * s);
+        flareGrad.addColorStop(0, `rgba(255, 255, 255, ${0.95 * s})`);
+        flareGrad.addColorStop(0.35, `rgba(0, 229, 255, ${0.75 * s})`);
+        flareGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+        ctx.fillStyle = flareGrad;
+        ctx.beginPath();
+        ctx.arc(rimX + 8, rimY, 95 * s, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      // 3. Post-Absorption Rim Charge Wave (Travels along the outline from right edge around the ring)
+      if (state.rimChargeWave > 0.01 && state.rimChargeWave < 0.99) {
+        const w = state.rimChargeWave;
+        const angleReach = w * Math.PI;
+        const alpha = 1 - w;
+
+        ctx.save();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.globalAlpha = alpha * 0.9;
+        ctx.lineWidth = 16;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = COLORS.cyan;
+        ctx.shadowBlur = 45;
+
+        // Upper rim pulse
+        ctx.beginPath();
+        ctx.arc(hx, hy, radius, -angleReach, Math.max(-0.05, -angleReach + 0.55));
+        ctx.stroke();
+
+        // Lower rim pulse
+        ctx.beginPath();
+        ctx.arc(hx, hy, radius, Math.min(0.05, angleReach - 0.55), angleReach);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawBezierSegment(pts, t0, t1, color, width, shadowBlur, drawLeadingSpark) {
+      const steps = 90;
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = t0 + (t1 - t0) * (i / steps);
+        const p = getBezierPoint(t, pts);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (shadowBlur > 0) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width * 1.6;
+        ctx.globalAlpha = 0.34;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = shadowBlur * 1.45;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = shadowBlur;
+      ctx.stroke();
+
+      if (shadowBlur > 0) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = width * 0.3;
+        ctx.globalAlpha = 0.72;
+        ctx.stroke();
+      }
+
+      if (drawLeadingSpark && t1 > 0.01 && t1 < 0.995) {
+        const tip = getBezierPoint(t1, pts);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 42;
+        ctx.beginPath();
+        ctx.arc(tip.x, tip.y, width * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawCircleNode(opts) {
+      const {
+        x, y, radius, alpha, ringColor, glowStrength, ringSweep = 1,
+        img, zoom, panX, panY, label, labelPos,
+        desaturate, isSelected, tickProgress, tickColor, subCounterText
+      } = opts;
+
+      if (radius <= 2) return;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      // 1. Circular Clipped Image Interior
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      ctx.fillStyle = '#0a0d12';
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+      if (img) {
+        if (desaturate) {
+          ctx.filter = 'grayscale(85%) brightness(62%) contrast(105%)';
+        }
+        const imgW = img.width || 512;
+        const imgH = img.height || 512;
+        const baseScale = (radius * 2) / Math.min(imgW, imgH);
+        const finalScale = baseScale * zoom;
+        const drawW = imgW * finalScale;
+        const drawH = imgH * finalScale;
+
+        ctx.drawImage(
+          img,
+          x - drawW / 2 + panX,
+          y - drawH / 2 + panY,
+          drawW,
+          drawH
+        );
+        ctx.filter = 'none';
+      }
+
+      const innerGrad = ctx.createRadialGradient(x, y, radius * 0.65, x, y, radius);
+      innerGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      innerGrad.addColorStop(1, 'rgba(0,0,0,0.52)');
+      ctx.fillStyle = innerGrad;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      ctx.restore();
+
+      // 2. Glowing Outer Ring Border
+      ctx.save();
+      const startAngle = -Math.PI / 2;
+      const endAngle = startAngle + Math.PI * 2 * Math.min(1, ringSweep);
+      ctx.beginPath();
+      ctx.arc(x, y, radius, startAngle, endAngle);
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 21;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = ringColor;
+      ctx.shadowBlur = glowStrength * 1.35;
+      ctx.stroke();
+
+      ctx.lineWidth = 15;
+      ctx.shadowBlur = glowStrength * 0.55;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.globalAlpha = alpha * 0.34;
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.restore();
+
+      if (isSelected) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 26, 0, Math.PI * 2);
+        ctx.setLineDash([16, 12]);
+        ctx.strokeStyle = COLORS.gold;
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 3. Smooth Glowing Tick Badge (✓)
+      if (tickProgress && tickProgress > 0.01) {
+        const badgeColor = tickColor || COLORS.cyan;
+        const p = Math.min(1, tickProgress);
+        const badgeScale = easeOutCubic(Math.min(1, p * 1.35));
+        const badgeR = Math.max(44, radius * 0.28) * badgeScale;
+        const bx = x + radius * 0.71;
+        const by = y - radius * 0.71;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+        ctx.fillStyle = '#05080c';
+        ctx.fill();
+        ctx.lineWidth = 7.5;
+        ctx.strokeStyle = badgeColor;
+        ctx.shadowColor = badgeColor;
+        ctx.shadowBlur = 34;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = badgeColor;
+        ctx.shadowColor = badgeColor;
+        ctx.shadowBlur = 24;
+        ctx.lineWidth = Math.max(7.5, badgeR * 0.22);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const x1 = bx - badgeR * 0.42;
+        const y1 = by + badgeR * 0.02;
+        const x2 = bx - badgeR * 0.08;
+        const y2 = by + badgeR * 0.36;
+        const x3 = bx + badgeR * 0.46;
+        const y3 = by - badgeR * 0.34;
+
+        ctx.moveTo(x1, y1);
+        if (p < 0.45) {
+          const segP = p / 0.45;
+          ctx.lineTo(x1 + (x2 - x1) * segP, y1 + (y2 - y1) * segP);
+        } else {
+          ctx.lineTo(x2, y2);
+          const segP = (p - 0.45) / 0.55;
+          ctx.lineTo(x2 + (x3 - x2) * segP, y2 + (y3 - y2) * segP);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 4. Node Title Label
+      if (label && label.trim() !== '') {
+        ctx.save();
+        ctx.font = '800 72px "Inter", "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.letterSpacing = '4px';
+
+        const textY = labelPos === 'top'
+          ? y - radius - 86
+          : y + radius + 92;
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.92)';
+        ctx.shadowBlur = 22;
+        ctx.fillText(label.toUpperCase(), x, textY);
+        ctx.restore();
+      }
+
+      if (
+        subCounterText &&
+        (!state.isPlaying ||
+          (state.phase !== 'MID_REVERSE_TRAVEL' && state.phase !== 'BLACKHOLE_ABSORB'))
+      ) {
+        ctx.save();
+        ctx.font = '700 38px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ringColor;
+        ctx.fillText(subCounterText, x, y - radius - 50);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    /********************************************************************
+     * 8. LOCK / UNLOCK POSITIONS, RESET LAYOUT & EDITOR CONTROLS
+     ********************************************************************/
+    let dragTarget = null;
+    let dragStartMouse = { x: 0, y: 0 };
+    let dragStartVal = { x: 0, y: 0 };
+
+    function clientToCanvasCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (clientX - rect.left) * (W / rect.width),
+        y: (clientY - rect.top) * (H / rect.height)
+      };
+    }
+
+    function getSelectedSubIndex() {
+      if (state.selectedKey.startsWith('sub-')) {
+        const idx = parseInt(state.selectedKey.split('-')[1], 10);
+        return Math.min(state.subMissions.length - 1, Math.max(0, idx));
+      }
+      return 0;
+    }
+
+    function getSelectedNodeObject() {
+      if (state.selectedKey === 'hero') return state.hero;
+      if (state.selectedKey === 'goal') return state.goal;
+      return state.subMissions[getSelectedSubIndex()] || state.subMissions[0];
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (state.isPlaying) return;
+      const m = clientToCanvasCoords(e.clientX, e.clientY);
+      const pts = getCurveControlPoints();
+      const midPt = getBezierPoint(0.5, pts);
+      const subNode = state.subMissions[getSelectedSubIndex()];
+
+      const canMoveNodes = !state.positionsLocked && !e.shiftKey;
+
+      if (Math.hypot(m.x - pts.hx, m.y - pts.hy) <= state.hero.radius + 30) {
+        state.selectedKey = 'hero';
+        if (e.shiftKey) {
+          dragTarget = 'pan';
+          dragStartVal = { x: state.hero.panX, y: state.hero.panY };
+        } else if (canMoveNodes) {
+          dragTarget = 'hero';
+          dragStartVal = { x: state.hero.x, y: state.hero.y };
+        }
+        dragStartMouse = m;
+      } else if (Math.hypot(m.x - pts.gx, m.y - pts.gy) <= state.goal.radius + 30) {
+        state.selectedKey = 'goal';
+        if (e.shiftKey) {
+          dragTarget = 'pan';
+          dragStartVal = { x: state.goal.panX, y: state.goal.panY };
+        } else if (canMoveNodes) {
+          dragTarget = 'goal';
+          dragStartVal = { x: state.goal.x, y: state.goal.y };
+        }
+        dragStartMouse = m;
+      } else if (subNode && Math.hypot(m.x - midPt.x, m.y - midPt.y) <= subNode.radius + 30) {
+        if (!state.selectedKey.startsWith('sub-')) state.selectedKey = 'sub-0';
+        if (e.shiftKey) {
+          dragTarget = 'pan';
+          dragStartVal = { x: subNode.panX, y: subNode.panY };
+        } else if (canMoveNodes) {
+          dragTarget = 'mid';
+          dragStartVal = { x: state.midCurveOffset.dx, y: state.midCurveOffset.dy };
+        }
+        dragStartMouse = m;
+      }
+
+      renderNodePills();
+      syncEditorInputs();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!dragTarget || state.isPlaying) return;
+      const m = clientToCanvasCoords(e.clientX, e.clientY);
+      const dx = m.x - dragStartMouse.x;
+      const dy = m.y - dragStartMouse.y;
+
+      if (dragTarget === 'hero') {
+        state.hero.x = Math.max(180, Math.min(W - 180, dragStartVal.x + dx));
+        state.hero.y = Math.max(180, Math.min(H - 180, dragStartVal.y + dy));
+      } else if (dragTarget === 'goal') {
+        state.goal.x = Math.max(180, Math.min(W - 180, dragStartVal.x + dx));
+        state.goal.y = Math.max(180, Math.min(H - 180, dragStartVal.y + dy));
+      } else if (dragTarget === 'mid') {
+        state.midCurveOffset.dx = dragStartVal.x + dx * 1.35;
+        state.midCurveOffset.dy = dragStartVal.y + dy * 1.35;
+      } else if (dragTarget === 'pan') {
+        const node = getSelectedNodeObject();
+        node.panX = dragStartVal.x + dx;
+        node.panY = dragStartVal.y + dy;
+        syncEditorInputs();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      dragTarget = null;
+    });
+
+    const btnLockToggle = document.getElementById('btnLockToggle');
+    const lockStatusHint = document.getElementById('lockStatusHint');
+    btnLockToggle.addEventListener('click', () => {
+      state.positionsLocked = !state.positionsLocked;
+      if (state.positionsLocked) {
+        btnLockToggle.textContent = '🔒 Positions: LOCKED';
+        btnLockToggle.classList.remove('active-toggle');
+        lockStatusHint.textContent = 'Positions Locked';
+        lockStatusHint.style.color = 'var(--gold)';
+        canvas.classList.remove('unlocked');
+      } else {
+        btnLockToggle.textContent = '🔓 Move Circles: ON';
+        btnLockToggle.classList.add('active-toggle');
+        lockStatusHint.textContent = 'Drag Circles to Move';
+        lockStatusHint.style.color = 'var(--cyan)';
+        canvas.classList.add('unlocked');
+      }
+    });
+
+    document.getElementById('btnResetLayout').addEventListener('click', () => {
+      state.hero.x = DEFAULT_LAYOUT.heroX;
+      state.hero.y = DEFAULT_LAYOUT.heroY;
+      state.hero.radius = DEFAULT_LAYOUT.heroRadius;
+      state.goal.x = DEFAULT_LAYOUT.goalX;
+      state.goal.y = DEFAULT_LAYOUT.goalY;
+      state.goal.radius = DEFAULT_LAYOUT.goalRadius;
+      state.midCurveOffset.dx = DEFAULT_LAYOUT.curveDX;
+      state.midCurveOffset.dy = DEFAULT_LAYOUT.curveDY;
+      stopAndResetToEdit();
+      syncEditorInputs();
+    });
+
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        loadImageIntoSelectedNode(e.dataTransfer.files[0]);
+      }
+    });
+
+    function renderNodePills() {
+      const container = document.getElementById('nodePillsContainer');
+      container.innerHTML = '';
+
+      const items = [
+        { key: 'hero', label: 'Hero (Top)', gold: false },
+        ...state.subMissions.map((_, i) => ({
+          key: `sub-${i}`,
+          label: `Middle ${i + 1}`,
+          gold: false
+        })),
+        { key: 'goal', label: 'Main Task (Bottom)', gold: true }
+      ];
+
+      items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.className = `node-pill ${item.gold ? 'gold-pill' : ''} ${state.selectedKey === item.key ? 'active' : ''}`;
+        btn.textContent = item.label;
+        btn.onclick = () => {
+          state.selectedKey = item.key;
+          if (state.isPlaying) stopAndResetToEdit();
+          renderNodePills();
+          syncEditorInputs();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function syncEditorInputs() {
+      const node = getSelectedNodeObject();
+      const titleMap = {
+        hero: 'Editing: Hero (Top Circle)',
+        goal: 'Editing: Main Task (Bottom Circle)'
+      };
+      document.getElementById('selectedNodeTitle').textContent =
+        titleMap[state.selectedKey] || `Editing: Middle Circle #${getSelectedSubIndex() + 1}`;
+
+      document.getElementById('inputNodeLabel').value = node.label || '';
+      document.getElementById('sliderImgZoom').value = node.zoom;
+      document.getElementById('valImgZoom').textContent = `${Math.round(node.zoom * 100)}%`;
+
+      document.getElementById('sliderImgX').value = node.panX;
+      document.getElementById('valImgX').textContent = Math.round(node.panX);
+
+      document.getElementById('sliderImgY').value = node.panY;
+      document.getElementById('valImgY').textContent = Math.round(node.panY);
+
+      document.getElementById('sliderRadius').value = node.radius;
+      document.getElementById('valRadius').textContent = `${Math.round(node.radius)}px`;
+    }
+
+    function loadImageIntoSelectedNode(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const node = getSelectedNodeObject();
+          node.img = img;
+          node.zoom = 1.0;
+          node.panX = 0;
+          node.panY = 0;
+          syncEditorInputs();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        loadImageIntoSelectedNode(e.target.files[0]);
+        e.target.value = '';
+      }
+    });
+
+    document.getElementById('inputMidCount').addEventListener('input', (e) => {
+      syncSubMissionsCount(parseInt(e.target.value, 10) || 1);
+    });
+
+    document.getElementById('sliderSpeed').addEventListener('input', (e) => {
+      state.speed = parseFloat(e.target.value);
+      document.getElementById('valSpeed').textContent = `${state.speed.toFixed(1)}x`;
+    });
+
+    document.getElementById('sliderBgZoom').addEventListener('input', (e) => {
+      state.bgMapZoom = parseFloat(e.target.value);
+      document.getElementById('valBgZoom').textContent = `${state.bgMapZoom.toFixed(1)}x`;
+    });
+
+    document.getElementById('sliderBgMap').addEventListener('input', (e) => {
+      state.bgMapIntensity = parseFloat(e.target.value);
+      document.getElementById('valBgMap').textContent = `${Math.round(state.bgMapIntensity * 100)}%`;
+    });
+
+    document.getElementById('inputNodeLabel').addEventListener('input', (e) => {
+      getSelectedNodeObject().label = e.target.value;
+    });
+
+    document.getElementById('sliderImgZoom').addEventListener('input', (e) => {
+      const node = getSelectedNodeObject();
+      node.zoom = parseFloat(e.target.value);
+      document.getElementById('valImgZoom').textContent = `${Math.round(node.zoom * 100)}%`;
+    });
+
+    document.getElementById('sliderImgX').addEventListener('input', (e) => {
+      const node = getSelectedNodeObject();
+      node.panX = parseFloat(e.target.value);
+      document.getElementById('valImgX').textContent = Math.round(node.panX);
+    });
+
+    document.getElementById('sliderImgY').addEventListener('input', (e) => {
+      const node = getSelectedNodeObject();
+      node.panY = parseFloat(e.target.value);
+      document.getElementById('valImgY').textContent = Math.round(node.panY);
+    });
+
+    document.getElementById('sliderRadius').addEventListener('input', (e) => {
+      const node = getSelectedNodeObject();
+      node.radius = parseFloat(e.target.value);
+      document.getElementById('valRadius').textContent = `${Math.round(node.radius)}px`;
+    });
+
+    document.getElementById('btnRemoveNodeImg').addEventListener('click', () => {
+      const node = getSelectedNodeObject();
+      node.img = null;
+      node.zoom = 1.0;
+      node.panX = 0;
+      node.panY = 0;
+      syncEditorInputs();
+    });
+
+    document.getElementById('btnClearAll').addEventListener('click', () => {
+      state.hero.img = null;
+      state.goal.img = null;
+      state.subMissions.forEach((s) => {
+        s.img = null;
+        s.zoom = 1.0;
+        s.panX = 0;
+        s.panY = 0;
+      });
+      syncEditorInputs();
+    });
+
+    document.getElementById('btnToggleSFX').addEventListener('click', (e) => {
+      state.sfxEnabled = !state.sfxEnabled;
+      e.target.textContent = state.sfxEnabled ? '🔊 SFX: ON' : '🔇 SFX: OFF';
+    });
+
+    document.getElementById('btnPlay').addEventListener('click', () => {
+      ensureAudio();
+      startAnimationSequence();
+    });
+
+    document.getElementById('btnStopEdit').addEventListener('click', () => {
+      stopAndResetToEdit();
+    });
+
+    document.getElementById('btnFullscreen').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    document.getElementById('btnToggleUI').addEventListener('click', () => {
+      const win = document.getElementById('editWindow');
+      const isHidden = win.style.display === 'none';
+      win.style.display = isHidden ? 'flex' : 'none';
+      document.getElementById('btnToggleUI').textContent = isHidden ? '👁 Hide Panel' : '👁 Show Panel';
+    });
+
+    // Built-in 4K WebM Video Recorder
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    document.getElementById('btnRecord').addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        return;
+      }
+      const stream = canvas.captureStream(60);
+      recordedChunks = [];
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 25000000
+      });
+
+      mediaRecorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) recordedChunks.push(ev.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `motion-mindmap-4k-${Date.now()}.webm`;
+        a.click();
+        document.getElementById('btnRecord').textContent = '⏺ Record 4K (.webm)';
+      };
+
+      document.getElementById('btnRecord').textContent = '⏹ Stop & Save Recording';
+      mediaRecorder.start();
+      startAnimationSequence();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!state.isPlaying) {
+          ensureAudio();
+          startAnimationSequence();
+        }
+      } else if (e.code === 'Escape') {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+        stopAndResetToEdit();
+      }
+    });
+
+    /********************************************************************
+     * 9. MAIN 60FPS ANIMATION LOOP
+     ********************************************************************/
+    let lastTime = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      updateTimeline(dt);
+      drawStage();
+      requestAnimationFrame(loop);
+    }
+
+    syncSubMissionsCount(3);
+    stopAndResetToEdit();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
