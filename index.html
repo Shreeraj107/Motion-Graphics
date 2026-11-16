@@ -2214,7 +2214,6 @@
 
     /********************************************************************
      * 8. RTX 5070 Ti HARDWARE-ACCELERATED 4K 60FPS MP4 EXPORTER
-     *    Explicit sRGB Color Space + High Profile Level 5.2 + 220 Mbps
      ********************************************************************/
     let cancelRenderRequested = false;
 
@@ -2222,27 +2221,28 @@
       cancelRenderRequested = true;
     });
 
-async function findSupportedRTX4KCodec(bitrate) {
+    async function findSupportedRTX4KCodec(bitrate) {
       const candidates = [
-        { codec: 'avc1.640034', muxCodec: 'avc' }, // H.264 High Profile Level 5.2
-        { codec: 'avc1.640033', muxCodec: 'avc' }, // H.264 High Profile Level 5.1
-        { codec: 'hev1.1.6.L153.B0', muxCodec: 'hevc' }, // HEVC Main 10 / Main Level 5.1
-        { codec: 'hvc1.1.6.L153.B0', muxCodec: 'hevc' },
-        { codec: 'avc1.4d0034', muxCodec: 'avc' }
+        { codec: 'av01.0.12M.10', muxCodec: 'av1' }, // AV1 (Best for RTX 40/50 series)
+        { codec: 'avc1.640034', muxCodec: 'avc' },   // H.264 High Profile Level 5.2
+        { codec: 'avc1.640033', muxCodec: 'avc' },   // H.264 High Profile Level 5.1
+        { codec: 'hev1.1.6.L153.B0', muxCodec: 'hevc' },
+        { codec: 'hvc1.1.6.L153.B0', muxCodec: 'hevc' }
       ];
 
       for (const c of candidates) {
         try {
-          const check = await VideoEncoder.isConfigSupported({
+          const config = {
             codec: c.codec,
             width: W,
             height: H,
-            bitrate,
+            bitrate: bitrate,
             framerate: 60,
             hardwareAcceleration: 'prefer-hardware',
-            latencyMode: 'quality',
-            bitrateMode: 'constant'
-          });
+            latencyMode: 'quality'
+            // bitrateMode removed to bypass Chromium 120Mbps restriction
+          };
+          const check = await VideoEncoder.isConfigSupported(config);
           if (check && check.supported) {
             return { config: check.config, muxCodec: c.muxCodec };
           }
@@ -2325,7 +2325,6 @@ async function findSupportedRTX4KCodec(bitrate) {
         fastStart: 'in-memory'
       });
 
-      // Inject sRGB Full-Range Color Metadata so players & DaVinci Resolve never darken by 1%
       const encoder = new VideoEncoder({
         output: (chunk, meta) => {
           if (meta && meta.decoderConfig) {
@@ -2357,7 +2356,6 @@ async function findSupportedRTX4KCodec(bitrate) {
           duration: Math.round(1000000 / fps)
         });
 
-        // Frequent keyframes (every 15 frames) preserve sharp micro-lines on dark backgrounds
         encoder.encode(frame, { keyFrame: frameIndex % 15 === 0 });
         frame.close();
 
