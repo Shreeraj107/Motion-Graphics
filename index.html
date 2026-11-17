@@ -2213,7 +2213,8 @@
     }
 
     /********************************************************************
-     * 8. RTX 5070 Ti HARDWARE-ACCELERATED 4K 60FPS MP4 EXPORTER
+     * 8. SOFTWARE / HYBRID 4K 60FPS MP4 EXPORTER (OPTION 1)
+     *    Bypasses MediaFoundation 30fps cap for exact 1:1 sRGB color
      ********************************************************************/
     let cancelRenderRequested = false;
 
@@ -2221,30 +2222,28 @@
       cancelRenderRequested = true;
     });
 
-    async function findSupportedRTX4KCodec(bitrate) {
-      const candidates = [
-        { codec: 'av01.0.12M.10', muxCodec: 'av1' }, // AV1 (Best for RTX 40/50 series)
-        { codec: 'avc1.640034', muxCodec: 'avc' },   // H.264 High Profile Level 5.2
-        { codec: 'avc1.640033', muxCodec: 'avc' },   // H.264 High Profile Level 5.1
-        { codec: 'hev1.1.6.L153.B0', muxCodec: 'hevc' },
-        { codec: 'hvc1.1.6.L153.B0', muxCodec: 'hevc' }
+    async function findSupportedRTX4KCodec(requestedBitrate) {
+      // Edge MediaFoundation caps hardware 4K at 30fps, so we allow software/driver encoder
+      // for offline 4K 60fps frame-by-frame rendering (uses your 32 CPU threads with zero frame drops)
+      const safeBitrate = Math.min(requestedBitrate, 180000000);
+
+      const codecList = [
+        { codec: 'avc1.640034', muxCodec: 'avc', bitrate: safeBitrate, label: 'H.264 High L5.2' },
+        { codec: 'avc1.640033', muxCodec: 'avc', bitrate: Math.min(safeBitrate, 135000000), label: 'H.264 High L5.1' },
+        { codec: 'avc1.4d0034', muxCodec: 'avc', bitrate: safeBitrate, label: 'H.264 Main L5.2' }
       ];
 
-      for (const c of candidates) {
+      for (const c of codecList) {
         try {
-          const config = {
+          const check = await VideoEncoder.isConfigSupported({
             codec: c.codec,
             width: W,
             height: H,
-            bitrate: bitrate,
-            framerate: 60,
-            hardwareAcceleration: 'prefer-hardware',
-            latencyMode: 'quality'
-            // bitrateMode removed to bypass Chromium 120Mbps restriction
-          };
-          const check = await VideoEncoder.isConfigSupported(config);
+            bitrate: c.bitrate,
+            framerate: 60
+          });
           if (check && check.supported) {
-            return { config: check.config, muxCodec: c.muxCodec };
+            return { config: check.config, muxCodec: c.muxCodec, mode: `${c.label} 60fps` };
           }
         } catch (_) {}
       }
@@ -2254,7 +2253,7 @@
     async function export4K60MP4() {
       if (state.isRenderingMP4) return;
       if (typeof VideoEncoder === 'undefined' || typeof Mp4Muxer === 'undefined') {
-        alert('Please open this app in Google Chrome or Microsoft Edge for RTX Hardware 4K MP4 Export.');
+        alert('Please open this app in Google Chrome or Microsoft Edge for 4K MP4 Export.');
         return;
       }
 
@@ -2262,7 +2261,7 @@
       const bitrate = parseInt(document.getElementById('selectMP4Bitrate').value, 10) || 220000000;
       const supported = await findSupportedRTX4KCodec(bitrate);
       if (!supported) {
-        alert('Your browser/GPU did not report a supported 4K 60fps hardware MP4 encoder.');
+        alert('Your browser did not report a supported 4K 60fps MP4 encoder.');
         return;
       }
 
@@ -2312,7 +2311,8 @@
       const bitrateEl = document.getElementById('renderBitrateText');
 
       modal.classList.add('active');
-      bitrateEl.textContent = `RTX NVENC • 3840×2160 • ${Math.round(bitrate / 1000000)} Mbps`;
+      const activeMbps = Math.round((supported.config.bitrate || bitrate) / 1000000);
+      bitrateEl.textContent = `${supported.mode} • ${activeMbps} Mbps`;
 
       const muxer = new Mp4Muxer.Muxer({
         target: new Mp4Muxer.ArrayBufferTarget(),
@@ -2325,6 +2325,8 @@
         fastStart: 'in-memory'
       });
 
+      let encoderFailed = false;
+      // Inject sRGB Full-Range Color Metadata so players & DaVinci Resolve never darken by 1%
       const encoder = new VideoEncoder({
         output: (chunk, meta) => {
           if (meta && meta.decoderConfig) {
@@ -2337,7 +2339,11 @@
           }
           muxer.addVideoChunk(chunk, meta);
         },
-        error: (e) => console.error('VideoEncoder error:', e)
+        error: (e) => {
+          console.error('VideoEncoder error:', e);
+          encoderFailed = true;
+          cancelRenderRequested = true;
+        }
       });
 
       encoder.configure(supported.config);
@@ -2353,9 +2359,16 @@
         const timestampUs = Math.round(frameIndex * (1000000 / fps));
         const frame = new VideoFrame(canvas, {
           timestamp: timestampUs,
-          duration: Math.round(1000000 / fps)
+          duration: Math.round(1000000 / fps),
+          colorSpace: {
+            primaries: 'bt709',
+            transfer: 'iec61966-2-1',
+            matrix: 'bt709',
+            fullRange: true
+          }
         });
 
+        // Frequent keyframes (every 15 frames) preserve sharp micro-lines on dark backgrounds
         encoder.encode(frame, { keyFrame: frameIndex % 15 === 0 });
         frame.close();
 
@@ -2382,7 +2395,7 @@
         }
       }
 
-      if (!cancelRenderRequested) {
+      if (!cancelRenderRequested && !encoderFailed) {
         bar.style.width = '100%';
         pctEl.textContent = '100%';
         frameEl.textContent = `Finalizing 4K Master MP4...`;
@@ -2409,6 +2422,9 @@
         }
       } else {
         try { encoder.close(); } catch (_) {}
+        if (encoderFailed) {
+          alert('Encoder stopped mid-render.');
+        }
       }
 
       modal.classList.remove('active');
